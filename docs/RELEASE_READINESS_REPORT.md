@@ -41,6 +41,8 @@ Decision: public repository published; release-readiness gates passed.
 | GitHub Actions runtime | Official checkout/setup releases pinned to reviewed immutable SHAs with current runner runtime support | Pass |
 | Public CI verification | Backend, frontend, Chromium and Docker Compose jobs passed on GitHub Actions run `34486035807` | Pass |
 | Private vulnerability reporting | GitHub repository API confirms private vulnerability reporting is enabled | Pass |
+| Repository protection | Strict backend/frontend/container checks required on `main`; force-push and branch deletion disabled | Pass |
+| Dependency security | GitHub vulnerability alerts and automatic security fixes enabled | Pass |
 
 ## Owner decisions before a versioned release
 

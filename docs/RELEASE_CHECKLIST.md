@@ -28,6 +28,7 @@
 - [x] Repository owner approved Apache License 2.0; canonical `LICENSE` and LOGIALOG `NOTICE` files are present.
 - [x] Repository owner selected GitHub Private Vulnerability Reporting as the official security-report channel.
 - [x] Enable Private Vulnerability Reporting in the public repository security settings.
+- [x] Enable dependency vulnerability alerts and automatic security fixes.
 
 ## Final verification
 
@@ -40,4 +41,5 @@
 - [x] Review `git status`; no files are staged and generated local artifacts are ignored.
 - [x] Repository owner authorized autonomous local completion and a local release commit.
 - [x] Obtain explicit approval before public repository creation and the first push.
+- [x] Protect remote `main` with required backend, frontend and container checks; block force-push and deletion.
 - [ ] Obtain explicit approval before creating a versioned GitHub Release or tag.
