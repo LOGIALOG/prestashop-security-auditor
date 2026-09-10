@@ -6,6 +6,13 @@
   {"case_id": "synthetic-invalid-url-value", "record_field": "detector.observed_component", "value": "https://shop.test"},
   {"case_id": "synthetic-invalid-email-value", "record_field": "detector.observed_component", "value": "person@example.test"},
   {"case_id": "synthetic-invalid-ip-value", "record_field": "detector.observed_component", "value": "192.0.2.10"},
+  {"case_id": "synthetic-invalid-ipv6-value", "record_field": "detector.observed_component", "value": "2001:db8::10"},
   {"case_id": "synthetic-invalid-production-path", "record_field": "detector.observed_component", "value": "C:\\srv\\production\\shop"},
+  {"case_id": "synthetic-invalid-unc-path", "record_field": "detector.observed_component", "value": "\\\\synthetic-server\\production\\shop"},
+  {"case_id": "synthetic-invalid-mnt-path", "record_field": "detector.observed_component", "value": "/mnt/production/shop"},
+  {"case_id": "synthetic-invalid-usr-path", "record_field": "detector.observed_component", "value": "/usr/local/prestashop"},
+  {"case_id": "synthetic-invalid-other-absolute-path", "record_field": "detector.observed_component", "value": "/app/production/shop"},
+  {"case_id": "synthetic-invalid-file-uri", "record_field": "detector.observed_component", "value": "file:synthetic-evidence"},
+  {"case_id": "synthetic-invalid-sftp-uri", "record_field": "detector.observed_component", "value": "sftp:synthetic-transfer"},
   {"case_id": "synthetic-invalid-credential-value", "record_field": "detector.observed_component", "value": "password=synthetic-value"}
 ]

@@ -13,6 +13,16 @@ ROOT = Path(__file__).parents[1]
 VALID_FIXTURE = ROOT / "tests" / "fixtures" / "validation-corpus.synthetic.json"
 INVALID_PRIVACY_FIXTURE = ROOT / "tests" / "fixtures" / "validation-corpus.invalid-privacy.json"
 SCHEMA_PATH = ROOT / "docs" / "validation-corpus-v1.schema.json"
+INVALID_PRIVACY_CASES = json.loads(INVALID_PRIVACY_FIXTURE.read_text(encoding="utf-8"))
+HARDENED_PRIVACY_CASES = {
+    "synthetic-invalid-ipv6-value",
+    "synthetic-invalid-unc-path",
+    "synthetic-invalid-mnt-path",
+    "synthetic-invalid-usr-path",
+    "synthetic-invalid-other-absolute-path",
+    "synthetic-invalid-file-uri",
+    "synthetic-invalid-sftp-uri",
+}
 
 
 def valid_payload() -> dict:
@@ -75,7 +85,15 @@ def test_malformed_record_and_duplicate_identifier_fail():
         ValidationCorpus.model_validate(unknown_field)
 
 
-@pytest.mark.parametrize("invalid_case", json.loads(INVALID_PRIVACY_FIXTURE.read_text(encoding="utf-8")))
+def test_privacy_fixture_covers_each_hardened_forbidden_value_class():
+    assert HARDENED_PRIVACY_CASES <= {case["case_id"] for case in INVALID_PRIVACY_CASES}
+
+
+@pytest.mark.parametrize(
+    "invalid_case",
+    INVALID_PRIVACY_CASES,
+    ids=[case["case_id"] for case in INVALID_PRIVACY_CASES],
+)
 def test_forbidden_privacy_fields_and_values_fail(invalid_case):
     payload = valid_payload()
     record = payload["records"][0]
@@ -117,7 +135,7 @@ def test_synthetic_corpus_requires_no_real_identifiers_or_customer_data():
     assert "synthetic-shop-" in serialized
 
 
-def test_validation_has_no_network_side_effect(monkeypatch):
+def test_synthetic_corpus_validation_path_has_no_network_side_effect(monkeypatch):
     def reject_network(*_args, **_kwargs):
         raise AssertionError("synthetic corpus validation must not access a network")
 

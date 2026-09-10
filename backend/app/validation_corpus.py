@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import ipaddress
 import json
 import re
 from datetime import datetime
@@ -44,14 +45,29 @@ FORBIDDEN_KEY_PARTS = {
 }
 PRIVACY_ASSERTION_KEYS = {"real_client_data", "real_domains"}
 FORBIDDEN_VALUE_PATTERNS = (
-    re.compile(r"https?://", re.IGNORECASE),
+    re.compile(r"(?<![a-z0-9+.-])[a-z][a-z0-9+.-]{1,31}:(?://|[^\s])", re.IGNORECASE),
     re.compile(r"\b[^\s@]+@[^\s@]+\.[^\s@]+\b"),
     re.compile(r"(?<![\d.])(?:\d{1,3}\.){3}\d{1,3}(?![\d.])"),
     re.compile(r"\b[a-z0-9-]+(?:\.[a-z0-9-]+)*\.[a-z]{2,63}\b", re.IGNORECASE),
-    re.compile(r"[a-z]:\\", re.IGNORECASE),
-    re.compile(r"/(?:etc|home|opt|srv|var)/", re.IGNORECASE),
+    re.compile(r"[a-z]:[\\/]", re.IGNORECASE),
+    re.compile(r"\\\\[^\\/\s]+\\[^\\\s]+"),
+    re.compile(r"(?<![a-z0-9])/(?:app|data|etc|home|mnt|opt|private|root|run|srv|tmp|usr|var|workspace)(?:/|\b)", re.IGNORECASE),
     re.compile(r"(?:api[_-]?key|credential|password|secret|session|token)\s*[:=]", re.IGNORECASE),
 )
+IPV6_CANDIDATE_PATTERN = re.compile(r"(?<![0-9a-f:])\[?[0-9a-f:]*:[0-9a-f:]+\]?(?![0-9a-f:])", re.IGNORECASE)
+
+
+def _contains_ipv6_address(value: str) -> bool:
+    for match in IPV6_CANDIDATE_PATTERN.finditer(value):
+        candidate = match.group(0).strip("[]")
+        if candidate.count(":") < 2:
+            continue
+        try:
+            if isinstance(ipaddress.ip_address(candidate), ipaddress.IPv6Address):
+                return True
+        except ValueError:
+            continue
+    return False
 
 
 def _assert_privacy_safe(value: object, location: str = "record") -> None:
@@ -66,6 +82,8 @@ def _assert_privacy_safe(value: object, location: str = "record") -> None:
         for index, nested in enumerate(value):
             _assert_privacy_safe(nested, f"{location}[{index}]")
     elif isinstance(value, str):
+        if _contains_ipv6_address(value):
+            raise ValueError(f"Forbidden privacy value at {location}")
         for pattern in FORBIDDEN_VALUE_PATTERNS:
             if pattern.search(value):
                 raise ValueError(f"Forbidden privacy value at {location}")
