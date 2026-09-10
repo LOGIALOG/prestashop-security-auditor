@@ -19,6 +19,6 @@ This release does not perform exploitation, brute force, authentication bypass, 
 
 ## Verification
 
-The release candidate passes 121 backend tests, 6 frontend tests, 3 Chromium accessibility/responsive tests, deterministic frontend build checks and localhost-only Docker Compose smoke tests. GitHub CI also validates repository safety, advisory integrity and the production advisory snapshot signature.
+The release candidate passes 122 backend tests, 6 frontend tests, 3 Chromium accessibility/responsive tests, deterministic frontend build checks and localhost-only Docker Compose smoke tests. GitHub CI also validates repository safety, advisory integrity and the production advisory snapshot signature.
 
 Production advisory signing key ID: `4b563811547e5518`.

@@ -56,6 +56,17 @@ def test_signature_rejects_wrong_public_key(tmp_path):
         verify_manifest_signature(manifest, signature, wrong_path)
 
 
+def test_manifest_signature_is_stable_across_line_endings(tmp_path):
+    manifest = tmp_path / "manifest.json"
+    signature = tmp_path / "manifest.sig.json"
+    private, public = write_keys(tmp_path)
+    manifest.write_bytes(b'{\r\n  "record_count": 2\r\n}\r\n')
+    signature.write_text(sign_manifest(manifest, private).model_dump_json(), encoding="utf-8")
+    manifest.write_bytes(b'{\n  "record_count": 2\n}\n')
+
+    assert verify_manifest_signature(manifest, signature, public).algorithm == "Ed25519"
+
+
 def test_published_advisory_snapshot_signature_is_valid():
     root = Path(__file__).parents[1]
 

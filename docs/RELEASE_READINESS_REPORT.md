@@ -16,7 +16,7 @@ Decision: public repository published; release-readiness gates passed.
 | CLI contracts | Authorization, success, confirmed-finding and network-failure tests | Pass |
 | Export contracts | JSON 1.0, SARIF 2.1.0 and CycloneDX 1.6 compatibility tests | Pass |
 | Community preparation | Contribution guide, code of conduct, PR template and safe issue forms | Pass |
-| Backend verification | Python 3.13.2 and 121 tests | Pass |
+| Backend verification | Python 3.13.2 and 122 tests | Pass |
 | Frontend verification | 6 unit tests, 3 Chromium accessibility/responsive tests and production build on Node.js 22.23.2 | Pass |
 | Frontend dependency integrity | Direct versions pinned, deterministic `npm ci`, compatible Node engine declared and npm audit reports zero vulnerabilities | Pass |
 | Interface localization | Full French, English and Arabic UI chrome; RTL document direction; versioned persistence; desktop/mobile browser QA with zero console errors | Pass |
@@ -33,7 +33,7 @@ Decision: public repository published; release-readiness gates passed.
 | Git operations | Owner-authorized public repository created and `codex/release-ready` pushed to remote `main` | Pass |
 | Public presentation assets | Official LOGIALOG logos, synthetic dashboard screenshot and self-contained report screenshot | Pass |
 | Private disclosure preparation | Owner-approved GitHub Private Vulnerability Reporting policy and public-issue routing | Pass |
-| Clean-checkout verification | Advisory signature, repository gates, 121 backend tests, PHP lint, deterministic frontend install/build and 3 Chromium tests | Pass |
+| Clean-checkout verification | Advisory signature, repository gates, 122 backend tests, PHP lint, deterministic frontend install/build and 3 Chromium tests | Pass |
 | Local HTTP runtime | Health, isolated demo, branded HTML report, JSON/SARIF downloads, authorization rejection and fictional lab endpoints | Pass |
 | Docker context privacy | Root and frontend build contexts exclude reports, secrets, private keys, virtual environments and generated artifacts | Pass |
 | Container CI preparation | Compose configuration, backend/frontend runtime, demo isolation and fictional lab smoke checks run only against localhost | Pass |

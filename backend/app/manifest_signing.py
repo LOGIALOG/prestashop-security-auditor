@@ -27,8 +27,12 @@ def _public_key_id(key: Ed25519PublicKey) -> str:
     return hashlib.sha256(raw).hexdigest()[:16]
 
 
+def _canonical_manifest_bytes(manifest_path: Path) -> bytes:
+    return manifest_path.read_bytes().replace(b"\r\n", b"\n")
+
+
 def sign_manifest(manifest_path: Path, private_key_path: Path, password: bytes | None = None) -> ManifestSignature:
-    return sign_payload(manifest_path.read_bytes(), private_key_path, password)
+    return sign_payload(_canonical_manifest_bytes(manifest_path), private_key_path, password)
 
 
 def sign_payload(payload: bytes, private_key_path: Path, password: bytes | None = None) -> ManifestSignature:
@@ -45,7 +49,7 @@ def sign_payload(payload: bytes, private_key_path: Path, password: bytes | None 
 
 def verify_manifest_signature(manifest_path: Path, signature_path: Path, public_key_path: Path) -> ManifestSignature:
     envelope = ManifestSignature.model_validate(json.loads(signature_path.read_text(encoding="utf-8")))
-    return verify_payload_signature(manifest_path.read_bytes(), envelope, public_key_path)
+    return verify_payload_signature(_canonical_manifest_bytes(manifest_path), envelope, public_key_path)
 
 
 def verify_payload_signature(payload: bytes, envelope: ManifestSignature, public_key_path: Path) -> ManifestSignature:
