@@ -1,4 +1,5 @@
 import json
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, HTTPException
@@ -12,13 +13,14 @@ from .models import AuditComparison, AuditRequest, AuditResult
 from .report import render_report, save_report
 from .scanner import AuditPolicyError, PassiveScanner
 
-app = FastAPI(title="LOGIALOG PrestaShop Security Auditor", version="1.0.0")
-app.add_middleware(CORSMiddleware, allow_origins=["http://127.0.0.1:5173"], allow_methods=["GET", "POST"], allow_headers=["*"])
-
-
-@app.on_event("startup")
-def startup() -> None:
+@asynccontextmanager
+async def lifespan(_: FastAPI):
     init_db()
+    yield
+
+
+app = FastAPI(title="LOGIALOG PrestaShop Security Auditor", version="1.0.0", lifespan=lifespan)
+app.add_middleware(CORSMiddleware, allow_origins=["http://127.0.0.1:5173"], allow_methods=["GET", "POST"], allow_headers=["*"])
 
 
 @app.get("/api/health")

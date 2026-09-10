@@ -6,6 +6,7 @@
 - [x] Repository safety gate passes.
 - [x] No real-shop domain is present in publishable source or fixtures; local ignored artifacts remain outside Git.
 - [x] Reports, SQLite databases, JSON exports, review candidates and `.env` are ignored.
+- [x] Docker build contexts exclude local reports, secrets, private keys, virtual environments and frontend artifacts.
 - [x] Demo data is restricted to `demo.local` and visibly marked.
 - [x] README screenshots contain only synthetic `demo.local` and reserved `example.test` data.
 - [x] Remote scanning remains authorization-gated, same-origin, GET-only and bounded.
@@ -30,7 +31,7 @@
 
 ## Final verification
 
-- [x] Run the complete backend suite on Python 3.13 (103 tests).
+- [x] Run the complete backend suite on Python 3.13 (105 tests).
 - [x] Run frontend tests and production build on Node.js 22.
 - [ ] Run a Docker Compose smoke test on a Docker-equipped host.
 - [x] Run repository, advisory, backend, frontend, Chromium and PHP gates from a clean checkout.

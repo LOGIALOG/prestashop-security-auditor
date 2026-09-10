@@ -36,12 +36,16 @@ def test_container_builds_do_not_depend_on_ignored_reports_and_expose_frontend()
     root = Path(__file__).parents[1]
     backend_dockerfile = (root / "backend" / "Dockerfile").read_text(encoding="utf-8")
     frontend_dockerfile = (root / "frontend" / "Dockerfile").read_text(encoding="utf-8")
+    root_dockerignore = (root / ".dockerignore").read_text(encoding="utf-8").splitlines()
+    frontend_dockerignore = (root / "frontend" / ".dockerignore").read_text(encoding="utf-8").splitlines()
 
     assert "COPY reports" not in backend_dockerfile
     assert "mkdir -p /app/reports" in backend_dockerfile
     assert "COPY package.json package-lock.json" in frontend_dockerfile
     assert "RUN npm ci" in frontend_dockerfile
     assert '"--host","0.0.0.0"' in frontend_dockerfile
+    assert {".env", "reports", "review-queue", "keys/private", ".venv"} <= set(root_dockerignore)
+    assert {"node_modules", "dist", "test-results", "playwright-report"} <= set(frontend_dockerignore)
 
 
 def test_repository_safety_requires_generated_artifact_ignores(tmp_path):
