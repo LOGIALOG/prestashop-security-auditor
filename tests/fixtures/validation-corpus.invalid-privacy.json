@@ -1,0 +1,11 @@
+[
+  {"case_id": "synthetic-invalid-client-field", "record_field": "client_name", "value": "synthetic-client"},
+  {"case_id": "synthetic-invalid-domain-field", "record_field": "target_domain", "value": "shop.test"},
+  {"case_id": "synthetic-invalid-cookie-field", "record_field": "cookie", "value": "synthetic-cookie"},
+  {"case_id": "synthetic-invalid-secret-field", "record_field": "secret", "value": "synthetic-secret"},
+  {"case_id": "synthetic-invalid-url-value", "record_field": "detector.observed_component", "value": "https://shop.test"},
+  {"case_id": "synthetic-invalid-email-value", "record_field": "detector.observed_component", "value": "person@example.test"},
+  {"case_id": "synthetic-invalid-ip-value", "record_field": "detector.observed_component", "value": "192.0.2.10"},
+  {"case_id": "synthetic-invalid-production-path", "record_field": "detector.observed_component", "value": "C:\\srv\\production\\shop"},
+  {"case_id": "synthetic-invalid-credential-value", "record_field": "detector.observed_component", "value": "password=synthetic-value"}
+]

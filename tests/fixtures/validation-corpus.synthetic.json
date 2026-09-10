@@ -1,0 +1,88 @@
+{
+  "format": "logialog-synthetic-validation-corpus",
+  "schema_version": "1.0",
+  "synthetic": true,
+  "real_client_data": false,
+  "real_domains": false,
+  "external_collection": false,
+  "records": [
+    {
+      "schema_version": "1.0",
+      "shop_id": "synthetic-shop-001",
+      "observation_id": "synthetic-observation-001",
+      "collected_at": "2000-01-01T00:00:00Z",
+      "scope": {"page_category": "HOME", "request_budget": 5, "requests_sent": 0, "network_access": false},
+      "strata": {"core_family": "PS_8", "hosting": "SHARED", "edge_layer": "NONE", "module_provenance": "OFFICIAL_VENDOR", "version_exposure": "EXACT", "asset_condition": "CURRENT"},
+      "detector": {"extractor_id": "synthetic-extractor-module-path", "extractor_version": "1.0.0", "detection_method": "MODULE_PATH", "confidence_tier": "HIGH", "observed_component": "synthetic-module-alpha", "observed_version": "1.2.3"},
+      "fingerprint_truth": {"status": "AVAILABLE", "source_type": "LOCAL_METADATA", "component_present": true, "exact_component": "synthetic-module-alpha", "exact_version": "1.2.3", "evidence_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "reviewer_id": "synthetic-reviewer-alpha"},
+      "fingerprint_outcome": "TP",
+      "advisory_truth": {"review_status": "REVIEWED", "advisory_record_id": "synthetic-advisory-alpha", "truth_classification": "AFFECTED", "observed_classification": "AFFECTED", "reviewer_id": "synthetic-reviewer-beta"},
+      "advisory_outcome": "CORRECT"
+    },
+    {
+      "schema_version": "1.0",
+      "shop_id": "synthetic-shop-002",
+      "observation_id": "synthetic-observation-002",
+      "collected_at": "2000-01-02T00:00:00Z",
+      "scope": {"page_category": "PUBLIC_PAGE", "request_budget": 10, "requests_sent": 0, "network_access": false},
+      "strata": {"core_family": "PS_1_7", "hosting": "MANAGED", "edge_layer": "CDN_WAF", "module_provenance": "COMMUNITY", "version_exposure": "PARTIAL", "asset_condition": "STALE_CACHE"},
+      "detector": {"extractor_id": "synthetic-extractor-asset", "extractor_version": "1.0.0", "detection_method": "ASSET_VERSION", "confidence_tier": "MEDIUM", "observed_component": "synthetic-module-beta", "observed_version": "2.0.0"},
+      "fingerprint_truth": {"status": "AVAILABLE", "source_type": "AUTHENTICATED_BACK_OFFICE", "component_present": true, "exact_component": "synthetic-module-gamma", "exact_version": "2.1.0", "evidence_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "reviewer_id": "synthetic-reviewer-alpha"},
+      "fingerprint_outcome": "FP",
+      "advisory_truth": {"review_status": "REVIEWED", "advisory_record_id": "synthetic-advisory-beta", "truth_classification": "FIXED", "observed_classification": "AFFECTED", "reviewer_id": "synthetic-reviewer-beta"},
+      "advisory_outcome": "INCORRECT"
+    },
+    {
+      "schema_version": "1.0",
+      "shop_id": "synthetic-shop-003",
+      "observation_id": "synthetic-observation-003",
+      "collected_at": "2000-01-03T00:00:00Z",
+      "scope": {"page_category": "ROBOTS", "request_budget": 3, "requests_sent": 0, "network_access": false},
+      "strata": {"core_family": "PS_9", "hosting": "CONTAINERIZED", "edge_layer": "CDN_ONLY", "module_provenance": "CUSTOM_PRIVATE", "version_exposure": "ABSENT", "asset_condition": "REMOVED"},
+      "detector": {"extractor_id": "synthetic-extractor-module-path", "extractor_version": "1.0.0", "detection_method": "NO_SIGNAL", "confidence_tier": "LOW", "observed_component": null, "observed_version": null},
+      "fingerprint_truth": {"status": "AVAILABLE", "source_type": "DEPLOYMENT_MANIFEST", "component_present": true, "exact_component": "synthetic-module-delta", "exact_version": "3.0.0", "evidence_sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc", "reviewer_id": "synthetic-reviewer-alpha"},
+      "fingerprint_outcome": "FN",
+      "advisory_truth": {"review_status": "UNKNOWN", "advisory_record_id": "synthetic-advisory-gamma", "truth_classification": "UNKNOWN", "observed_classification": "UNKNOWN", "reviewer_id": "synthetic-reviewer-beta"},
+      "advisory_outcome": "UNKNOWN"
+    },
+    {
+      "schema_version": "1.0",
+      "shop_id": "synthetic-shop-004",
+      "observation_id": "synthetic-observation-004",
+      "collected_at": "2000-01-04T00:00:00Z",
+      "scope": {"page_category": "HOME", "request_budget": 2, "requests_sent": 0, "network_access": false},
+      "strata": {"core_family": "PS_8", "hosting": "VPS_DEDICATED", "edge_layer": "WAF_ONLY", "module_provenance": "OFFICIAL_VENDOR", "version_exposure": "ABSENT", "asset_condition": "CURRENT"},
+      "detector": {"extractor_id": "synthetic-extractor-module-path", "extractor_version": "1.0.0", "detection_method": "NO_SIGNAL", "confidence_tier": "HIGH", "observed_component": null, "observed_version": null},
+      "fingerprint_truth": {"status": "AVAILABLE", "source_type": "LOCAL_METADATA", "component_present": false, "exact_component": null, "exact_version": null, "evidence_sha256": "dddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddddd", "reviewer_id": "synthetic-reviewer-alpha"},
+      "fingerprint_outcome": "CORRECT_ABSTENTION",
+      "advisory_truth": {"review_status": "NOT_APPLICABLE", "advisory_record_id": null, "truth_classification": "NOT_APPLICABLE", "observed_classification": "NOT_APPLICABLE", "reviewer_id": "synthetic-reviewer-beta"},
+      "advisory_outcome": "NOT_APPLICABLE"
+    },
+    {
+      "schema_version": "1.0",
+      "shop_id": "synthetic-shop-005",
+      "observation_id": "synthetic-observation-005",
+      "collected_at": "2000-01-05T00:00:00Z",
+      "scope": {"page_category": "PUBLIC_PAGE", "request_budget": 7, "requests_sent": 0, "network_access": false},
+      "strata": {"core_family": "PS_1_7", "hosting": "SHARED", "edge_layer": "CDN_ONLY", "module_provenance": "COMMUNITY", "version_exposure": "PARTIAL", "asset_condition": "MINIFIED_BUNDLED"},
+      "detector": {"extractor_id": "synthetic-extractor-asset", "extractor_version": "1.0.0", "detection_method": "ASSET_VERSION", "confidence_tier": "LOW", "observed_component": "synthetic-module-epsilon", "observed_version": "4.0.0"},
+      "fingerprint_truth": {"status": "UNAVAILABLE", "source_type": "NONE", "component_present": null, "exact_component": null, "exact_version": null, "evidence_sha256": null, "reviewer_id": "synthetic-reviewer-alpha"},
+      "fingerprint_outcome": "INDETERMINATE",
+      "advisory_truth": {"review_status": "REVIEWED", "advisory_record_id": "synthetic-advisory-delta", "truth_classification": "AFFECTED", "observed_classification": "AFFECTED", "reviewer_id": "synthetic-reviewer-beta"},
+      "advisory_outcome": "CORRECT"
+    },
+    {
+      "schema_version": "1.0",
+      "shop_id": "synthetic-shop-006",
+      "observation_id": "synthetic-observation-006",
+      "collected_at": "2000-01-06T00:00:00Z",
+      "scope": {"page_category": "HOME", "request_budget": 4, "requests_sent": 0, "network_access": false},
+      "strata": {"core_family": "PS_9", "hosting": "MANAGED", "edge_layer": "NONE", "module_provenance": "CUSTOM_PRIVATE", "version_exposure": "CONFLICTING_SPOOFED", "asset_condition": "RENAMED"},
+      "detector": {"extractor_id": "synthetic-extractor-conflict", "extractor_version": "1.0.0", "detection_method": "CONFLICTING_SIGNALS", "confidence_tier": "MEDIUM", "observed_component": "synthetic-module-zeta", "observed_version": "5.0.0"},
+      "fingerprint_truth": {"status": "CONFLICTING", "source_type": "LOCAL_METADATA", "component_present": null, "exact_component": null, "exact_version": null, "evidence_sha256": "eeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee", "reviewer_id": "synthetic-reviewer-alpha"},
+      "fingerprint_outcome": "GROUND_TRUTH_CONFLICT",
+      "advisory_truth": {"review_status": "REVIEWED", "advisory_record_id": "synthetic-advisory-epsilon", "truth_classification": "FIXED", "observed_classification": "FIXED", "reviewer_id": "synthetic-reviewer-beta"},
+      "advisory_outcome": "CORRECT"
+    }
+  ]
+}
