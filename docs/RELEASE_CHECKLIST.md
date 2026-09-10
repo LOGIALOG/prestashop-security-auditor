@@ -33,6 +33,7 @@
 - [x] Run the complete backend suite on Python 3.13 (103 tests).
 - [x] Run frontend tests and production build on Node.js 22.
 - [ ] Run a Docker Compose smoke test on a Docker-equipped host.
-- [ ] Run repository and advisory gates from a clean checkout.
+- [x] Run repository, advisory, backend, frontend, Chromium and PHP gates from a clean checkout.
 - [x] Review `git status`; no files are staged and generated local artifacts are ignored.
-- [ ] Obtain explicit approval before commit, push, release or publication.
+- [x] Repository owner authorized autonomous local completion and a local release commit.
+- [ ] Obtain explicit approval before public repository creation, push, release or publication.

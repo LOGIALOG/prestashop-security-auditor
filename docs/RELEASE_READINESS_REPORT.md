@@ -30,18 +30,17 @@ Decision: technically ready for owner review, not approved for publication.
 | Companion inventory | PHP syntax checks, HTTPS timestamped HMAC, GET-only response and strict no-secret schema | Pass |
 | Team history | SQLite v2 append-only review journal with actor labels and verifiable global SHA-256 chain | Pass |
 | External safety | No real external shop was scanned during the night plan | Pass |
-| Git operations | No commit, push, release or publication performed | Pass |
+| Git operations | Local release commits created on `codex/release-ready`; no remote, push, release or publication performed | Pass |
 | Public presentation assets | Official LOGIALOG logos, synthetic dashboard screenshot and self-contained report screenshot | Pass |
 | Private disclosure preparation | Owner-approved GitHub Private Vulnerability Reporting policy and public-issue routing | Pass |
+| Clean-checkout verification | Advisory and repository gates, 103 backend tests, PHP lint, deterministic frontend install/build and 3 Chromium tests | Pass |
 
 ## Owner decisions before public release
 
-1. Approve screenshots that contain only synthetic `demo.local` data.
-2. Explicitly authorize the final commit and push.
+1. Explicitly authorize creation of the public GitHub repository and the first push.
 
 ## Remaining technical follow-ups
 
-- Verify repository and advisory gates from the first clean checkout after an authorized commit exists.
 - Run a full Docker Compose smoke test on a Docker-equipped host; static container startup contracts are covered locally, but Docker is unavailable on the current machine.
 - Enable GitHub Private Vulnerability Reporting immediately after repository creation and before publication.
 - Generate the production Ed25519 key outside the checkout and publish only the approved public key; implementation and verification tests are complete.
@@ -49,4 +48,4 @@ Decision: technically ready for owner review, not approved for publication.
 
 ## Local release decision
 
-The planned implementation work is complete and verified locally. Publication remains intentionally blocked by owner-controlled legal, identity, contact and authorization decisions listed above.
+The planned implementation work is complete and verified locally. Publication remains intentionally blocked until the owner authorizes creation of the public repository and the first push. Private Vulnerability Reporting must then be enabled in GitHub before publication; the Docker Compose runtime smoke test also remains pending on a Docker-equipped host.
