@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from pathlib import Path
@@ -15,6 +16,8 @@ class LocalComponent(BaseModel):
     version: str | None = None
     relative_path: str
     detection_method: str
+    evidence_path: str | None = None
+    evidence_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class LocalObservation(BaseModel):
@@ -37,11 +40,12 @@ class LocalSourceInventory(BaseModel):
     executed_source_code: Literal[False] = False
 
 
-VERSION_PATTERN = re.compile(r"_PS_VERSION_[\s'\",()]+(\d+(?:\.\d+){1,3})")
+VERSION_PATTERN = re.compile(r"(?:_PS_VERSION_|_PS_INSTALL_VERSION_)[\s'\",()]+(\d+(?:\.\d+){1,3})")
 PHP_MODULE_VERSION = re.compile(r"\$this->version\s*=\s*['\"]([^'\"]+)['\"]")
 XML_MODULE_VERSION = re.compile(r"<version>\s*(?:<!\[CDATA\[)?\s*([^<\]]+)")
 DEV_MODE_PATTERN = re.compile(r"define\s*\(\s*['\"]_PS_MODE_DEV_['\"]\s*,\s*(true|false)", re.IGNORECASE)
 MAX_OVERRIDE_FILES = 5_000
+MAX_EVIDENCE_SIZE = 20_000_000
 
 
 def _safe_file(root: Path, path: Path) -> bool:
@@ -65,14 +69,27 @@ def _read_limited(path: Path, limit: int = 1_000_000) -> str:
         return handle.read(limit)
 
 
+def _evidence_fields(root: Path, path: Path) -> dict[str, str | None]:
+    if path.stat().st_size > MAX_EVIDENCE_SIZE:
+        return {"evidence_path": path.relative_to(root).as_posix(), "evidence_sha256": None}
+    return {
+        "evidence_path": path.relative_to(root).as_posix(),
+        "evidence_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+    }
+
+
 def _core_component(root: Path) -> LocalComponent | None:
-    candidates = [root / "config" / "settings.inc.php", root / "app" / "AppKernel.php"]
-    for path in candidates:
+    candidates = [
+        (root / "config" / "settings.inc.php", "ps_version_constant"),
+        (root / "config" / "defines.inc.php", "ps_version_constant"),
+        (root / "install-dev" / "install_version.php", "ps_install_version_constant"),
+    ]
+    for path, method in candidates:
         if not _safe_file(root, path):
             continue
         match = VERSION_PATTERN.search(_read_limited(path))
         if match:
-            return LocalComponent(kind="prestashop-core", name="prestashop/prestashop", version=match.group(1), relative_path=path.relative_to(root).as_posix(), detection_method="ps_version_constant")
+            return LocalComponent(kind="prestashop-core", name="prestashop/prestashop", version=match.group(1), relative_path=".", detection_method=method, **_evidence_fields(root, path))
     return None
 
 
@@ -85,11 +102,14 @@ def _module_component(root: Path, module_dir: Path) -> LocalComponent:
         match = XML_MODULE_VERSION.search(_read_limited(config))
         if match:
             version, method = match.group(1).strip(), "config_xml"
+            evidence_path = config
     if version is None and _safe_file(root, main_php):
         match = PHP_MODULE_VERSION.search(_read_limited(main_php))
         if match:
             version, method = match.group(1).strip(), "module_php_assignment"
-    return LocalComponent(kind="prestashop-module", name=module_dir.name, version=version, relative_path=module_dir.relative_to(root).as_posix(), detection_method=method)
+            evidence_path = main_php
+    evidence = _evidence_fields(root, evidence_path) if version is not None else {"evidence_path": None, "evidence_sha256": None}
+    return LocalComponent(kind="prestashop-module", name=module_dir.name, version=version, relative_path=module_dir.relative_to(root).as_posix(), detection_method=method, **evidence)
 
 
 def _scan_overrides(root: Path, warnings: list[str]) -> list[LocalObservation]:
@@ -150,10 +170,15 @@ def scan_local_source(source: Path) -> LocalSourceInventory:
                 raise ValueError("composer.lock invalide: package non structuré")
             name, version = package.get("name"), package.get("version")
             if isinstance(name, str):
-                components.append(LocalComponent(kind="composer-package", name=name, version=version if isinstance(version, str) else None, relative_path="composer.lock", detection_method="composer_lock"))
+                components.append(LocalComponent(kind="composer-package", name=name, version=version if isinstance(version, str) else None, relative_path="composer.lock", detection_method="composer_lock", **_evidence_fields(root, lockfile)))
     observations = _scan_overrides(root, warnings)
     observations.extend(_scan_configuration(root))
     return LocalSourceInventory(root_name=root.name, components=components, observations=observations, warnings=warnings)
+
+
+def component_bom_ref(item: LocalComponent) -> str:
+    identity = f"{item.kind}:{item.name}:{item.version or ''}"
+    return f"urn:logialog:component:{uuid5(NAMESPACE_URL, identity)}"
 
 
 def render_cyclonedx(inventory: LocalSourceInventory) -> dict:
@@ -161,7 +186,11 @@ def render_cyclonedx(inventory: LocalSourceInventory) -> dict:
     components = []
     for item in inventory.components:
         component_type = "application" if item.kind == "prestashop-core" else "library"
-        component = {"type": component_type, "name": item.name, "properties": [{"name": "logialog:kind", "value": item.kind}, {"name": "logialog:path", "value": item.relative_path}, {"name": "logialog:detection-method", "value": item.detection_method}]}
+        component = {"type": component_type, "name": item.name, "bom-ref": component_bom_ref(item), "properties": [{"name": "logialog:kind", "value": item.kind}, {"name": "logialog:path", "value": item.relative_path}, {"name": "logialog:detection-method", "value": item.detection_method}]}
+        if item.evidence_path:
+            component["properties"].append({"name": "logialog:evidence-path", "value": item.evidence_path})
+        if item.evidence_sha256:
+            component["properties"].append({"name": "logialog:evidence-sha256", "value": item.evidence_sha256})
         if item.version:
             component["version"] = item.version
         if item.kind == "composer-package" and item.version:

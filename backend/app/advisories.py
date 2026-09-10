@@ -123,8 +123,8 @@ def validate_advisory_manifest(directory: Path | None = None) -> Path:
     return manifest_path
 
 
-def load_advisories() -> list[dict]:
-    paths = validate_advisory_files()
+def load_advisories(directory: Path | None = None) -> list[dict]:
+    paths = validate_advisory_files(directory)
     return [json.loads(path.read_text(encoding="utf-8")) for path in paths]
 
 

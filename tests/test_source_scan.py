@@ -21,6 +21,8 @@ def test_local_source_inventory_and_cyclonedx(tmp_path):
         ("prestashop-module", "samplemodule", "1.2.3"),
         ("composer-package", "vendor/package", "v2.0.0"),
     ]
+    assert all(item.evidence_path for item in inventory.components)
+    assert all(item.evidence_sha256 and len(item.evidence_sha256) == 64 for item in inventory.components)
     sbom = render_cyclonedx(inventory)
     assert sbom["bomFormat"] == "CycloneDX"
     assert sbom["specVersion"] == "1.6"
@@ -91,3 +93,17 @@ def test_local_scan_does_not_export_database_credentials(tmp_path):
 
     assert "secret-value" not in serialized
     assert "database_password" not in serialized
+
+
+def test_local_scan_detects_modern_install_version_file(tmp_path):
+    install = tmp_path / "install-dev"
+    install.mkdir()
+    (install / "install_version.php").write_text("<?php define('_PS_INSTALL_VERSION_', '9.3.0');", encoding="utf-8")
+
+    inventory = scan_local_source(tmp_path)
+
+    core = inventory.components[0]
+    assert core.version == "9.3.0"
+    assert core.detection_method == "ps_install_version_constant"
+    assert core.evidence_path == "install-dev/install_version.php"
+    assert len(core.evidence_sha256) == 64

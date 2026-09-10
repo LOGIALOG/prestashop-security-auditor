@@ -64,11 +64,11 @@ class PassiveScanner:
         start = datetime.now(timezone.utc)
         root = str(request.target).rstrip("/") + "/"
         origin = normalized_origin(root)
-        if self.transport is None:
-            await asyncio.to_thread(reject_private_target, origin[1])
         urls = [root, root.rstrip("/") + "/robots.txt"] + [str(u) for u in request.public_pages]
         for url in urls:
             assert_allowed(url, origin)
+        if self.transport is None:
+            await asyncio.to_thread(reject_private_target, origin[1])
         extracted: list[Extracted] = []
         headers_seen: dict[str, str] = {}
         cookies: list[dict[str, str | bool]] = []

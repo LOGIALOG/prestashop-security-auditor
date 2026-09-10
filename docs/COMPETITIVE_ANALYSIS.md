@@ -20,27 +20,23 @@ LOGIALOG should not compete on “more aggressive scanning”. Its defensible po
 1. Every real conclusion is tied to captured evidence, time, URL, hash, extractor and confidence.
 2. Unknown versions stay unknown; asset residue never becomes a fabricated vulnerability.
 3. The remote mode remains GET-only, rate-limited and same-origin.
-4. A separate trusted local-source mode can later provide deep checks without exposing the shop.
+4. A separate trusted local-source mode provides inventory, review signals and manifest-verified advisory correlation without exposing the shop.
 5. Outputs are portable: HTML for clients, JSON for automation and SARIF for CI/security tooling.
 6. Advisory data is versioned, attributable, reproducible and usable offline.
 
 ## High-value feature gaps
 
-### Build now
+### Delivered from the study
 
-- JSON and SARIF exports with complete evidence provenance.
-- CLI/headless execution with stable exit codes and policy profiles.
-- Advisory schema validation, snapshot metadata and update provenance.
-- False-positive regression corpus for module/version extractors.
-- Diff between two real audits, never between demo and real data.
-
-### Build next
-
-- Trusted local source-tree scan for module manifests, Composer dependencies, overrides and unsafe configuration.
-- CycloneDX SBOM export for the local source tree.
-- GitHub Actions example with SARIF upload.
-- Multistore-aware inventory and PrestaShop compatibility matrix.
-- Signed evidence manifest and verifiable report bundle.
+- [x] JSON and SARIF exports with complete evidence provenance.
+- [x] CLI/headless execution with stable exit codes and policy profiles.
+- [x] Advisory schema validation, snapshot metadata and update provenance.
+- [x] False-positive regression corpus for module/version extractors.
+- [x] Diff between two real audits, never between demo and real data.
+- [x] Trusted local source-tree scan, CycloneDX SBOM and conservative PHP review signals.
+- [x] Manifest-verified offline matching between local module versions and reviewed advisories.
+- [x] GitHub Actions example, multistore isolation and signed evidence bundles.
+- [x] Network-free readiness diagnostics and exact scan-scope planning before execution.
 
 ### Keep out of remote mode
 

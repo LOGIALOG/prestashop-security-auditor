@@ -4,6 +4,7 @@ from pathlib import Path
 import httpx
 
 from backend.app import cli
+from backend.app.advisories import build_advisory_manifest
 from backend.app.models import AuditResult, Status
 
 
@@ -78,17 +79,21 @@ def test_scan_returns_policy_exit_code_for_confirmed_findings(monkeypatch, capsy
         item.is_demo = False
     result.findings[0].status = Status.CONFIRMED
 
+    captured = {}
+
     class FakeScanner:
-        async def run(self, _request):
+        async def run(self, request):
+            captured["request"] = request
             return result
 
     monkeypatch.setattr(cli, "PassiveScanner", FakeScanner)
     monkeypatch.setattr(cli, "save_report", lambda _audit: ("report.html", "a" * 64))
     monkeypatch.setattr(cli, "save_audit", lambda _audit: None)
 
-    code = cli.main(["scan", "https://shop.test", "--authorized", "--max-requests", "1", "--fail-on-confirmed"])
+    code = cli.main(["scan", "https://shop.test", "--authorized", "--public-page", "https://shop.test/contact", "--max-requests", "1", "--fail-on-confirmed"])
 
     assert code == cli.EXIT_POLICY_FINDINGS
+    assert str(captured["request"].public_pages[0]) == "https://shop.test/contact"
     assert json.loads(capsys.readouterr().out)["audit"]["target"] == "https://shop.test"
 
 
@@ -153,3 +158,38 @@ def test_manifest_command_detects_advisory_tampering(tmp_path, capsys):
     advisory.write_text(advisory.read_text(encoding="utf-8").replace("CWE-89", "CWE-20"), encoding="utf-8")
     assert cli.main(["advisories", "validate", "--directory", str(tmp_path)]) == cli.EXIT_INVALID_ADVISORY
     assert "manifest advisory" in capsys.readouterr().err
+
+
+def test_source_assess_command_exports_sarif_and_fails_on_affected(tmp_path):
+    module = tmp_path / "shop" / "modules" / "ybc_blog"
+    advisories = tmp_path / "advisories"
+    module.mkdir(parents=True)
+    advisories.mkdir()
+    (module / "config.xml").write_text("<module><version><![CDATA[3.3.8]]></version></module>", encoding="utf-8")
+    source = Path(__file__).parents[1] / "advisories" / "ybc_blog.json"
+    (advisories / "ybc_blog.json").write_bytes(source.read_bytes())
+    (advisories / "snapshot-manifest.json").write_text(
+        json.dumps(build_advisory_manifest(advisories), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    destination = tmp_path / "assessment.sarif"
+
+    code = cli.main(
+        [
+            "source",
+            "assess",
+            str(tmp_path / "shop"),
+            "--advisories",
+            str(advisories),
+            "--format",
+            "sarif",
+            "--output",
+            str(destination),
+            "--fail-on-affected",
+        ]
+    )
+
+    assert code == cli.EXIT_POLICY_FINDINGS
+    payload = json.loads(destination.read_text(encoding="utf-8"))
+    assert payload["runs"][0]["results"][0]["level"] == "error"
+    assert payload["runs"][0]["results"][0]["ruleId"] == "friendsofpresta-CVE-2023-43979"

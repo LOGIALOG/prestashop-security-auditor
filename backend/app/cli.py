@@ -19,9 +19,11 @@ from .code_review import review_local_php
 from .comparison import compare_audits
 from .companion import fetch_companion_inventory
 from .database import add_history_event, get_audit, get_previous_real_audit, list_history, save_audit, verify_history
+from .doctor import run_doctor
 from .exports import render_json_export, render_sarif
 from .models import AuditRequest, AuditResult, Status
 from .manifest_signing import sign_manifest, verify_manifest_signature
+from .local_assessment import assess_local_source, render_assessment_cyclonedx, render_assessment_sarif
 from .monitoring import evaluate_monitor, load_monitor_config
 from .multistore import load_multistore_manifest, run_multistore
 from .policy import evaluate_policy, load_policy_pack
@@ -30,6 +32,7 @@ from .report_bundle import create_signed_bundle, verify_signed_bundle
 from .report_profile import load_report_profile
 from .repository_safety import validate_repository_safety
 from .scanner import AuditPolicyError, PassiveScanner
+from .scan_plan import build_scan_plan
 from .source_scan import render_cyclonedx, scan_local_source
 
 EXIT_OK = 0
@@ -39,6 +42,7 @@ EXIT_INVALID_ADVISORY = 4
 EXIT_RUNTIME_ERROR = 5
 EXIT_POLICY_FINDINGS = 10
 EXIT_MEANINGFUL_CHANGE = 11
+EXIT_DOCTOR_FAILED = 12
 
 
 def _configure_utf8_streams() -> None:
@@ -57,9 +61,22 @@ def build_parser() -> argparse.ArgumentParser:
     scan.add_argument("--authorized", action="store_true", help="Confirmer l'autorisation explicite")
     scan.add_argument("--max-requests", type=int, default=20)
     scan.add_argument("--delay", type=float, default=1.0)
+    scan.add_argument("--public-page", action="append", default=[])
     scan.add_argument("--format", choices=("json", "sarif"), default="json")
     scan.add_argument("--output", type=Path)
     scan.add_argument("--fail-on-confirmed", action="store_true")
+
+    plan = subcommands.add_parser("plan", help="Afficher le périmètre d’un audit sans accès réseau")
+    plan.add_argument("target")
+    plan.add_argument("--authorized", action="store_true", help="Confirmer l'autorisation explicite")
+    plan.add_argument("--max-requests", type=int, default=20)
+    plan.add_argument("--delay", type=float, default=1.0)
+    plan.add_argument("--public-page", action="append", default=[])
+    plan.add_argument("--output", type=Path)
+
+    doctor = subcommands.add_parser("doctor", help="Vérifier la préparation locale sans accès réseau")
+    doctor.add_argument("--root", type=Path, default=Path.cwd())
+    doctor.add_argument("--output", type=Path)
 
     export = subcommands.add_parser("export", help="Exporter un audit enregistré")
     export.add_argument("audit_id")
@@ -166,6 +183,12 @@ def build_parser() -> argparse.ArgumentParser:
     source_review = source_commands.add_parser("review", help="Repérer des patterns PHP à revoir sans exécuter le code")
     source_review.add_argument("path", type=Path)
     source_review.add_argument("--output", type=Path)
+    source_assess = source_commands.add_parser("assess", help="Corréler les versions locales avec le snapshot advisory vérifié")
+    source_assess.add_argument("path", type=Path)
+    source_assess.add_argument("--advisories", type=Path)
+    source_assess.add_argument("--format", choices=("json", "sarif", "cyclonedx"), default="json")
+    source_assess.add_argument("--output", type=Path)
+    source_assess.add_argument("--fail-on-affected", action="store_true")
 
     repository = subcommands.add_parser("repository", help="Vérifier la sécurité des fichiers avant publication")
     repository_commands = repository.add_subparsers(dest="repository_command", required=True)
@@ -193,6 +216,7 @@ async def _scan(args: argparse.Namespace) -> int:
         authorization_confirmed=args.authorized,
         max_requests=args.max_requests,
         delay_seconds=args.delay,
+        public_pages=args.public_page,
     )
     audit = await PassiveScanner().run(request)
     path, digest = save_report(audit)
@@ -239,6 +263,20 @@ def main(argv: Sequence[str] | None = None) -> int:
     _configure_utf8_streams()
     args = build_parser().parse_args(argv)
     try:
+        if args.command == "doctor":
+            report = run_doctor(args.root)
+            _emit(report.model_dump(mode="json"), args.output)
+            return EXIT_OK if report.ready else EXIT_DOCTOR_FAILED
+        if args.command == "plan":
+            request = AuditRequest(
+                target=args.target,
+                authorization_confirmed=args.authorized,
+                max_requests=args.max_requests,
+                delay_seconds=args.delay,
+                public_pages=args.public_page,
+            )
+            _emit(build_scan_plan(request).model_dump(mode="json"), args.output)
+            return EXIT_OK
         if args.command == "advisories":
             if args.advisory_command == "sign":
                 password_value = os.environ.get(args.password_env) if args.password_env else None
@@ -346,6 +384,18 @@ def main(argv: Sequence[str] | None = None) -> int:
                 return EXIT_OK
             if args.source_command == "review":
                 _emit(review_local_php(args.path).model_dump(mode="json"), args.output)
+                return EXIT_OK
+            if args.source_command == "assess":
+                assessment = assess_local_source(args.path, args.advisories)
+                if args.format == "sarif":
+                    payload = render_assessment_sarif(assessment)
+                elif args.format == "cyclonedx":
+                    payload = render_assessment_cyclonedx(assessment)
+                else:
+                    payload = assessment.model_dump(mode="json")
+                _emit(payload, args.output)
+                if args.fail_on_affected and assessment.affected_count:
+                    return EXIT_POLICY_FINDINGS
                 return EXIT_OK
             inventory = scan_local_source(args.path)
             payload = render_cyclonedx(inventory) if args.format == "cyclonedx" else inventory.model_dump(mode="json")

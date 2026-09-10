@@ -61,3 +61,23 @@ Exit criteria: agencies and community contributors can extend the tool without w
 - [x] Versioned policy packs that evaluate audits without changing findings or scores.
 
 These items should follow real user feedback; they are not required for the first public release.
+
+## v2.0 — Offline local advisory assessment
+
+- [x] Hash the exact local metadata file used as version evidence, including the PrestaShop 9 install-version source.
+- [x] Correlate locally detected module versions with a manifest-verified advisory snapshot without network or code execution.
+- [x] Keep affected, not-affected and indeterminate states explicit; never present version correlation as exploitation evidence.
+- [x] Report core security releases as maintenance guidance instead of unsupported CVE claims.
+- [x] Export local paths and provenance in JSON, SARIF 2.1.0 and CycloneDX 1.6.
+- [x] Add a CI-friendly `--fail-on-affected` threshold with regression tests for fixed, affected, unknown and tampered inputs.
+
+Exit criteria: a developer can turn a trusted checkout into an offline, reviewable remediation queue without overstating certainty.
+
+## v2.1 — Predictable operation
+
+- [x] Add a network-free `doctor` report for required local integrity checks and optional runtimes.
+- [x] Add an authorization-gated scan plan that previews fixed URLs, same-origin policy, methods, delay and request budget without network access.
+- [x] Accept explicit repeated public pages consistently in the plan and the real scan CLI.
+- [x] Define stable machine-readable contracts and a dedicated readiness exit code.
+
+Exit criteria: operators can verify readiness and exact scan boundaries before the first request leaves the machine.

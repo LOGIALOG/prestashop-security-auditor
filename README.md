@@ -55,6 +55,8 @@ Ouvrir [http://127.0.0.1:5173](http://127.0.0.1:5173). L’API reste locale sur 
 | --- | --- |
 | Comprendre les formats exportés | [Contrat JSON et SARIF](docs/EXPORT_CONTRACT.md) |
 | Scanner un checkout local | [CLI et source scan](#cli-développeur) |
+| Corréler les versions locales | [Évaluation advisory hors ligne](docs/LOCAL_ASSESSMENT.md) |
+| Vérifier avant un audit | [Préflight opérationnel](docs/OPERATIONAL_PREFLIGHT.md) |
 | Créer un rapport agence | [Profils white-label](docs/REPORT_PROFILES.md) |
 | Signer une livraison | [Bundles de rapport](docs/REPORT_BUNDLES.md) |
 | Auditer plusieurs boutiques | [Mode multistore](docs/MULTISTORE.md) |
@@ -222,7 +224,16 @@ Tracer une revue dans le journal d’équipe local :
 
 Le journal append-only est chaîné par SHA-256. L’acteur est une attribution explicite, pas une identité cryptographiquement authentifiée. Voir [docs/TEAM_HISTORY.md](docs/TEAM_HISTORY.md).
 
-Exit codes stables : `0` succès sans alerte, `2` entrée ou autorisation invalide, `3` audit absent, `4` advisory invalide, `5` erreur d’exécution, `10` échec de policy/finding confirmé et `11` changement significatif détecté par le monitoring.
+Exit codes stables : `0` succès sans alerte, `2` entrée ou autorisation invalide, `3` audit absent, `4` advisory invalide, `5` erreur d’exécution, `10` échec de policy/finding confirmé ou version locale affectée, `11` changement significatif détecté par le monitoring et `12` préflight local non prêt.
+
+Vérifier la préparation locale puis prévisualiser exactement le périmètre d’un audit sans accès réseau :
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.app.cli doctor --output reports\doctor.json
+.\.venv\Scripts\python.exe -m backend.app.cli plan https://boutique.example --authorized --max-requests 10 --delay 2 --public-page https://boutique.example/contact --output reports\scan-plan.json
+```
+
+Le plan refuse les pages d’un autre domaine et confirme GET-only, le délai et le budget avant toute requête. Voir [docs/OPERATIONAL_PREFLIGHT.md](docs/OPERATIONAL_PREFLIGHT.md).
 
 Inventorier un checkout PrestaShop local et produire un SBOM CycloneDX, sans réseau ni exécution du code analysé :
 
@@ -231,6 +242,14 @@ Inventorier un checkout PrestaShop local et produire un SBOM CycloneDX, sans ré
 ```
 
 L’inventaire n’exporte pas le contenu des fichiers et n’invente jamais une version absente. Il signale également les overrides PHP, le mode développeur et la présence locale du répertoire `install`, sans lire ni exporter les paramètres de base de données.
+
+Corréler ensuite cet inventaire avec le snapshot advisory vérifié et produire une file de remédiation JSON, SARIF ou CycloneDX :
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.app.cli source assess C:\chemin\vers\prestashop --format sarif --output reports\local-assessment.sarif --fail-on-affected
+```
+
+`AFFECTED` signifie que la version locale prouvée tombe dans une plage publiée; cela ne prouve jamais une exploitation. Les versions inconnues restent `INDETERMINATE` et les releases de sécurité du core restent des recommandations de maintenance. Voir [docs/LOCAL_ASSESSMENT.md](docs/LOCAL_ASSESSMENT.md).
 
 Repérer localement des patterns PHP nécessitant une revue manuelle :
 
