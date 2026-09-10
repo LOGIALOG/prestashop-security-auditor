@@ -12,6 +12,7 @@ The first public release provides a local-first, evidence-first security workflo
 - White-label reports, isolated multistore execution, policy packs, monitoring and append-only team history.
 - French, English and Arabic dashboard support, including RTL and accessibility regression coverage.
 - Network-free `doctor` readiness checks and authorization-gated scan planning.
+- Patched `cryptography` and `pytest` dependencies with zero open Dependabot alerts at release validation time.
 
 ## Safety boundaries
 
