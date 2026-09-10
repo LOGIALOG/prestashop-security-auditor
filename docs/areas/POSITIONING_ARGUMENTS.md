@@ -51,16 +51,16 @@ The trusted advisory set is intentionally small today. “Reviewed” means sche
 
 ## Evidence backlog
 
-Before making stronger quantitative claims, collect a consented and anonymized validation corpus that includes:
+Before making stronger quantitative claims, follow the independent [validation corpus protocol](../VALIDATION_PROTOCOL.md). A volunteer or convenience corpus is not a representative sample of the PrestaShop ecosystem. The corpus should include:
 
 1. Supported PrestaShop major versions and representative hosting/CDN configurations.
 2. Official, custom, outdated, renamed and cache-stale module examples.
-3. Ground-truth versions obtained from local metadata or authenticated Back Office access.
-4. Per-extractor true positives, false positives, false negatives and indeterminate outcomes.
+3. Fingerprint ground truth from local metadata or authenticated Back Office access, kept separate from independently reviewed advisory ground truth.
+4. Per-extractor true positives, false positives, false negatives and indeterminate outcomes; advisory correlation uses correct, incorrect and unknown instead.
 5. Request counts, WAF/SOC observations and operational incidents during authorized scans.
 6. Advisory coverage by module popularity, publication source, severity and time-to-review.
 
-Only after publishing the methodology and sample limitations may the project describe precision, recall, calibration or ecosystem coverage numerically.
+Only after publishing the methodology and sample limitations may the project describe precision or recall numerically. Qualitative confidence tiers must first be evaluated with correct, incorrect and indeterminate counts; they are not probabilities and must not use calibration language.
 
 ## Senior objections and precise responses
 
