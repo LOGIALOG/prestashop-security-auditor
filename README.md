@@ -240,7 +240,7 @@ Repérer localement des patterns PHP nécessitant une revue manuelle :
 
 La sortie contient uniquement la règle, le chemin, la ligne et la confiance. Elle n’exporte pas le code source et ne transforme jamais un signal en vulnérabilité confirmée.
 
-La CI GitHub exécute uniquement la validation des advisories, les tests et le build. Elle ne lance aucun scan externe. L’intégration SARIF pour un environnement privé et explicitement autorisé est documentée dans [docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md). Le contrat et les règles de migration des données sont définis dans [docs/ADVISORY_SCHEMA.md](docs/ADVISORY_SCHEMA.md).
+La CI GitHub exécute uniquement la validation des advisories, les tests, le build et un smoke test Docker Compose lié à `127.0.0.1`. Elle ne lance aucun scan externe. L’intégration SARIF pour un environnement privé et explicitement autorisé est documentée dans [docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md). Le contrat et les règles de migration des données sont définis dans [docs/ADVISORY_SCHEMA.md](docs/ADVISORY_SCHEMA.md).
 
 Voir [ROADMAP.md](ROADMAP.md) et [docs/COMPETITIVE_ANALYSIS.md](docs/COMPETITIVE_ANALYSIS.md) pour la stratégie produit et l’étude des outils existants.
 

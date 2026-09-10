@@ -40,3 +40,49 @@ jobs:
       - run: npm run build
       - run: npx playwright install --with-deps chromium
       - run: npm run test:e2e
+
+  containers:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+      - name: Validate Compose configuration
+        run: docker compose config --quiet
+      - name: Start local application containers
+        run: docker compose up --build --detach backend frontend
+      - name: Verify local API and dashboard
+        shell: bash
+        run: |
+          set -euo pipefail
+          for attempt in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8000/api/health > /tmp/logialog-health.json; then
+              break
+            fi
+            if [ "$attempt" = 60 ]; then
+              docker compose logs backend frontend
+              exit 1
+            fi
+            sleep 2
+          done
+          grep --quiet '"status":"ok"' /tmp/logialog-health.json
+          curl --fail --silent --show-error http://127.0.0.1:5173/ | grep --quiet "LOGIALOG"
+          curl --fail --silent --show-error http://127.0.0.1:8000/api/demo | grep --quiet '"domain":"demo.local"'
+      - name: Verify isolated fictional lab
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker compose --profile lab up --build --detach lab
+          for attempt in {1..60}; do
+            if curl --fail --silent --show-error http://127.0.0.1:8010/ > /tmp/logialog-lab.html; then
+              break
+            fi
+            if [ "$attempt" = 60 ]; then
+              docker compose --profile lab logs lab
+              exit 1
+            fi
+            sleep 2
+          done
+          grep --quiet "DONNÉES FICTIVES" /tmp/logialog-lab.html
+          grep --quiet "aucun payload exploitable" /tmp/logialog-lab.html
+      - name: Stop local containers
+        if: always()
+        run: docker compose --profile lab down --volumes

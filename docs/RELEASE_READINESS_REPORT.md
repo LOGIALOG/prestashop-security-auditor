@@ -16,7 +16,7 @@ Decision: technically ready for owner review, not approved for publication.
 | CLI contracts | Authorization, success, confirmed-finding and network-failure tests | Pass |
 | Export contracts | JSON 1.0, SARIF 2.1.0 and CycloneDX 1.6 compatibility tests | Pass |
 | Community preparation | Contribution guide, code of conduct, PR template and safe issue forms | Pass |
-| Backend verification | Python 3.13.2 and 105 tests | Pass |
+| Backend verification | Python 3.13.2 and 107 tests | Pass |
 | Frontend verification | 6 unit tests, 3 Chromium accessibility/responsive tests and production build on Node.js 22.23.2 | Pass |
 | Frontend dependency integrity | Direct versions pinned, deterministic `npm ci`, compatible Node engine declared and npm audit reports zero vulnerabilities | Pass |
 | Interface localization | Full French, English and Arabic UI chrome; RTL document direction; versioned persistence; desktop/mobile browser QA with zero console errors | Pass |
@@ -33,9 +33,11 @@ Decision: technically ready for owner review, not approved for publication.
 | Git operations | Local release commits created on `codex/release-ready`; no remote, push, release or publication performed | Pass |
 | Public presentation assets | Official LOGIALOG logos, synthetic dashboard screenshot and self-contained report screenshot | Pass |
 | Private disclosure preparation | Owner-approved GitHub Private Vulnerability Reporting policy and public-issue routing | Pass |
-| Clean-checkout verification | Advisory and repository gates, 105 backend tests, PHP lint, deterministic frontend install/build and 3 Chromium tests | Pass |
+| Clean-checkout verification | Advisory and repository gates, 107 backend tests, PHP lint, deterministic frontend install/build and 3 Chromium tests | Pass |
 | Local HTTP runtime | Health, isolated demo, branded HTML report, JSON/SARIF downloads, authorization rejection and fictional lab endpoints | Pass |
 | Docker context privacy | Root and frontend build contexts exclude reports, secrets, private keys, virtual environments and generated artifacts | Pass |
+| Container CI preparation | Compose configuration, backend/frontend runtime, demo isolation and fictional lab smoke checks run only against localhost | Pass |
+| GitHub configuration integrity | Workflow and issue-template YAML parsing plus container-smoke and private-report routing assertions | Pass |
 
 ## Owner decisions before public release
 
@@ -43,7 +45,7 @@ Decision: technically ready for owner review, not approved for publication.
 
 ## Remaining technical follow-ups
 
-- Run a full Docker Compose smoke test on a Docker-equipped host; static container startup contracts are covered locally, but Docker is unavailable on the current machine.
+- Run the prepared Docker Compose smoke job on a Docker-equipped GitHub runner after the authorized first push; Docker is unavailable on the current machine.
 - Enable GitHub Private Vulnerability Reporting immediately after repository creation and before publication.
 - Generate the production Ed25519 key outside the checkout and publish only the approved public key; implementation and verification tests are complete.
 - Re-review pinned GitHub Actions commit SHAs during dependency updates.
