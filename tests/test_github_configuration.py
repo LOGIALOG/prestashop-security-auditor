@@ -1,3 +1,4 @@
+import re
 from pathlib import Path
 
 import yaml
@@ -24,3 +25,16 @@ def test_ci_keeps_local_container_smoke_and_private_security_routing():
     assert any("127.0.0.1:8010" in step.get("run", "") for step in container_steps)
     assert issue_config["blank_issues_enabled"] is False
     assert issue_config["contact_links"][0]["url"].endswith("/security/advisories/new")
+
+
+def test_all_github_actions_are_pinned_to_immutable_commits():
+    workflow = yaml.safe_load((ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8"))
+    action_references = [
+        step["uses"]
+        for job in workflow["jobs"].values()
+        for step in job["steps"]
+        if "uses" in step
+    ]
+
+    assert action_references
+    assert all(re.fullmatch(r"[^@]+@[0-9a-f]{40}", reference) for reference in action_references)

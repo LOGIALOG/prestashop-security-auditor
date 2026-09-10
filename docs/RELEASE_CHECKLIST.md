@@ -31,7 +31,7 @@
 
 ## Final verification
 
-- [x] Run the complete backend suite on Python 3.13 (107 tests).
+- [x] Run the complete backend suite on Python 3.13 (108 tests).
 - [x] Run frontend tests and production build on Node.js 22.
 - [x] Add a localhost-only Docker Compose build and runtime smoke job to GitHub CI.
 - [x] Validate all GitHub workflow and issue-template YAML in the backend test suite.
