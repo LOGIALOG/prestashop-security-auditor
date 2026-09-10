@@ -1,0 +1,14 @@
+{
+  "schema_version": "1.0",
+  "policy_id": "logialog.agency-release",
+  "title": "LOGIALOG agency release gate",
+  "allow_demo": false,
+  "minimum_score": 70,
+  "fail_on_statuses": ["CONFIRMED"],
+  "maximum_counts": {
+    "likely": 0,
+    "requires_access": 5
+  },
+  "minimum_evidence_confidence": "medium",
+  "require_report_hash": true
+}

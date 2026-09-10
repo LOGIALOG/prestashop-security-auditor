@@ -1,0 +1,48 @@
+import json
+from pathlib import Path
+
+from backend.app.exports import render_json_export, render_sarif
+from backend.app.models import AuditResult
+
+
+def demo_audit() -> AuditResult:
+    fixture = Path(__file__).parents[1] / "backend" / "fixtures" / "demo-audit.json"
+    return AuditResult.model_validate(json.loads(fixture.read_text(encoding="utf-8")))
+
+
+def test_portable_json_excludes_local_report_path():
+    audit = demo_audit()
+    audit.report_path = "C:/private/reports/audit.html"
+
+    exported = render_json_export(audit)
+
+    assert exported["format"] == "logialog-audit"
+    assert exported["format_version"] == "1.0"
+    assert exported["demo"] is True
+    assert "report_path" not in exported["audit"]
+    evidence = exported["audit"]["findings"][0]["evidence"][0]
+    assert set(("url", "captured_at", "evidence_type", "excerpt", "response_sha256", "confidence", "detection_method")) <= evidence.keys()
+
+
+def test_sarif_preserves_evidence_provenance_and_demo_marker():
+    exported = render_sarif(demo_audit())
+    run = exported["runs"][0]
+    result = run["results"][0]
+    location = result["locations"][0]
+
+    assert exported["version"] == "2.1.0"
+    assert run["tool"]["driver"]["informationUri"] == "https://github.com/logialog/prestashop-security-auditor"
+    assert run["properties"]["demo"] is True
+    assert result["properties"]["demo"] is True
+    assert location["physicalLocation"]["artifactLocation"]["uri"].startswith("https://demo.local/")
+    assert len(location["properties"]["responseSha256"]) == 64
+
+
+def test_sarif_uses_unique_rules_for_repeated_subjects():
+    audit = demo_audit()
+    audit.findings.append(audit.findings[0].model_copy(deep=True))
+
+    exported = render_sarif(audit)
+
+    rules = exported["runs"][0]["tool"]["driver"]["rules"]
+    assert len(rules) == len({rule["id"] for rule in rules})

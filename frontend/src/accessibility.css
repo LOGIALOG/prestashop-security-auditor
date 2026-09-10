@@ -1,0 +1,4 @@
+button,input,select{font:inherit}
+:where(button,a,input,select,summary):focus-visible{outline:3px solid #f59e0b;outline-offset:3px}
+.present,.primary{background:#087f95}
+header p{color:#526176}

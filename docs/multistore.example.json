@@ -1,0 +1,21 @@
+{
+  "schema_version": "1.0",
+  "authorization_confirmed": true,
+  "delay_seconds": 1,
+  "shops": [
+    {
+      "shop_id": "shop-fr",
+      "name": "Boutique France",
+      "target": "https://fr-shop.example",
+      "public_pages": [],
+      "max_requests": 20
+    },
+    {
+      "shop_id": "shop-ma",
+      "name": "Boutique Maroc",
+      "target": "https://ma-shop.example",
+      "public_pages": [],
+      "max_requests": 20
+    }
+  ]
+}

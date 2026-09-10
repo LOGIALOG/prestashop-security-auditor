@@ -1,0 +1,74 @@
+{
+  "is_demo": true,
+  "target": "demo.local",
+  "id": "demo-session",
+  "domain": "demo.local",
+  "started_at": "2000-01-01T00:00:00Z",
+  "completed_at": "2000-01-01T00:00:00Z",
+  "request_count": 3,
+  "scope": ["https://demo.local/", "https://demo.local/robots.txt", "https://demo.local/assets/demo.css"],
+  "findings": [
+    {
+      "is_demo": true,
+      "subject": "ybc_blog",
+      "status": "REQUIRES_ACCESS",
+      "severity": "À vérifier",
+      "cve": "CVE-2023-43979",
+      "interpretation": "Le module ybc_blog est publiquement détectable. Sa version installée n’a pas pu être confirmée. La présence du module ne prouve pas que CVE-2023-43979 est exploitable.",
+      "business_risk": "Une vérification urgente de la version est justifiée par la criticité de l’avis publié, sans conclure à une vulnérabilité.",
+      "remediation": "Confirmer la version depuis le serveur ou le Back Office.",
+      "source": "https://security.friendsofpresta.org/modules/2023/11/14/ybc_blog.html",
+      "access_required": "Accès serveur ou Back Office",
+      "evidence": [{"url":"https://demo.local/","captured_at":"2000-01-01T00:00:00Z","evidence_type":"active_module","excerpt":"/modules/ybc_blog/views/demo.css","response_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","confidence":"high","detection_method":"module_path"}]
+    },
+    {
+      "is_demo": true,
+      "subject": "newsletterpro",
+      "status": "REQUIRES_ACCESS",
+      "severity": "À vérifier",
+      "version": "4.0.1",
+      "interpretation": "NewsletterPro 4.0.1 détecté dans un bundle frontend. Cette valeur ne confirme pas la version PHP installée et aucune vulnérabilité n’est confirmée.",
+      "business_risk": "Provenance et version serveur inconnues.",
+      "remediation": "Comparer les fichiers avec une archive officielle.",
+      "access_required": "Accès serveur ou Back Office",
+      "evidence": [{"url":"https://demo.local/assets/demo.js","captured_at":"2000-01-01T00:00:00Z","evidence_type":"asset_module","excerpt":"newsletterpro version 4.0.1","response_sha256":"bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb","confidence":"medium","detection_method":"compiled_asset_identifier"}]
+    },
+    {
+      "is_demo": true,
+      "subject": "prestashop",
+      "status": "REQUIRES_ACCESS",
+      "severity": "Information",
+      "version": "8.2.7",
+      "interpretation": "Version probable : PrestaShop 8.2.7. Confiance : Medium. Méthode : classe CSS du body. Confirmation serveur requise : Oui.",
+      "business_risk": "La version réelle du cœur doit être confirmée avant toute conclusion.",
+      "remediation": "Confirmer la version depuis le serveur ou le Back Office.",
+      "access_required": "Accès serveur ou Back Office",
+      "evidence": [{"url":"https://demo.local/","captured_at":"2000-01-01T00:00:00Z","evidence_type":"html_fingerprint","excerpt":"ps_827","response_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","confidence":"medium","detection_method":"ps_html_class"}]
+    },
+    {
+      "is_demo": true,
+      "subject": "content-security-policy",
+      "status": "HARDENING",
+      "severity": "Faible",
+      "interpretation": "En-tête absent; aucune exploitation démontrée.",
+      "business_risk": "Défense en profondeur réduite.",
+      "remediation": "Ajouter une politique après tests.",
+      "evidence": [{"url":"https://demo.local/","captured_at":"2000-01-01T00:00:00Z","evidence_type":"http_header","excerpt":"content-security-policy: Absent","response_sha256":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","confidence":"high","detection_method":"response_header_check"}]
+    }
+  ],
+  "headers": {"content-security-policy":"Absent","strict-transport-security":"max-age=31536000"},
+  "cookies": [],
+  "report_path": null,
+  "report_sha256": null,
+  "score": {
+    "value": 95,
+    "formula": "100 - confirmé (Critical 25, High 15, Medium 8, Low 3) - LIKELY 5 - REQUIRES_ACCESS 2 - HARDENING 1; ASSET_RESIDUE et NOT_AFFECTED: 0. Minimum 0.",
+    "factors": [
+      {"subject":"ybc_blog","status":"REQUIRES_ACCESS","points":-2,"reason":"Version à confirmer : -2 points."},
+      {"subject":"newsletterpro","status":"REQUIRES_ACCESS","points":-2,"reason":"Version frontend seulement : -2 points."},
+      {"subject":"prestashop","status":"REQUIRES_ACCESS","points":-2,"reason":"Fingerprint probable : -2 points."},
+      {"subject":"content-security-policy","status":"HARDENING","points":-1,"reason":"Durcissement absent : -1 point."}
+    ],
+    "previous_comparison": null
+  }
+}

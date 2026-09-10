@@ -1,0 +1,13 @@
+{
+  "schema_version": "1.0",
+  "monitor_id": "shop-production",
+  "target": "https://shop.example",
+  "authorization_confirmed": true,
+  "public_pages": [],
+  "max_requests": 20,
+  "delay_seconds": 1,
+  "notify_on_added_statuses": ["CONFIRMED", "LIKELY", "REQUIRES_ACCESS"],
+  "notify_on_resolved": true,
+  "notify_on_status_change": true,
+  "minimum_score_drop": 1
+}

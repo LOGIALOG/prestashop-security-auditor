@@ -1,0 +1,36 @@
+.comparison-note,
+.comparison-summary {
+  margin-bottom: 1.125rem;
+  border: 1px solid #eee;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.comparison-note {
+  padding: 1rem 1.25rem;
+  color: #64748b;
+  font-size: 0.875rem;
+}
+
+.comparison-summary {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+}
+
+.comparison-summary > div {
+  display: grid;
+  gap: 0.25rem;
+  padding: 1rem 1.25rem;
+  border-right: 1px solid #eee;
+}
+
+.comparison-summary > div:last-child { border-right: 0; }
+.comparison-summary span { color: #64748b; font-size: 0.75rem; }
+.comparison-summary strong { font-size: 1.25rem; }
+.comparison-summary .positive { color: #15945a; }
+.comparison-summary .negative { color: #d92d3f; }
+
+@media (max-width: 900px) {
+  .comparison-summary { grid-template-columns: 1fr 1fr; }
+  .comparison-summary > div { border-bottom: 1px solid #eee; }
+}

@@ -1,0 +1,17 @@
+{
+  "schema_version": 1,
+  "record_id": "friendsofpresta-CVE-2023-43979",
+  "module": "ybc_blog",
+  "cve": "CVE-2023-43979",
+  "type": "SQL Injection",
+  "cwe": "CWE-89",
+  "cvss": "9.8 Critical",
+  "affected_max": "3.3.8",
+  "fixed_version": "4.4.0",
+  "authentication_required": false,
+  "business_risk": "Une version affectée pourrait permettre une lecture ou altération de données sans authentification.",
+  "source": "https://security.friendsofpresta.org/modules/2023/11/14/ybc_blog.html",
+  "source_authority": "Friends of Presta",
+  "published": "2023-11-14",
+  "retrieved_at": "2026-09-06"
+}

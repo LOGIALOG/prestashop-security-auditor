@@ -1,0 +1,18 @@
+{
+  "manifest_version": 1,
+  "advisory_schema_version": 1,
+  "snapshot_date": "2026-09-06",
+  "record_count": 2,
+  "records": [
+    {
+      "file": "prestashop-core-8.2.8.json",
+      "record_id": "prestashop-core-8.2.8-security-release",
+      "sha256": "ed6d1002d868c9c2b6e43de91c81a755dd326c2ba07c5c6bde49132b03f023db"
+    },
+    {
+      "file": "ybc_blog.json",
+      "record_id": "friendsofpresta-CVE-2023-43979",
+      "sha256": "0bd60d01f6dd06f5dd6514b981a3e9434899f36414d26052ef6fb5c23bf2bd81"
+    }
+  ]
+}

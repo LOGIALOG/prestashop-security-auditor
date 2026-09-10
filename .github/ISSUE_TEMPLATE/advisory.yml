@@ -1,0 +1,32 @@
+name: Advisory proposal
+description: Propose public upstream advisory metadata for manual review
+title: "feat: propose advisory for "
+labels: [advisory-review]
+body:
+  - type: input
+    id: source
+    attributes:
+      label: Direct public source URL
+    validations:
+      required: true
+  - type: input
+    id: identifier
+    attributes:
+      label: CVE or upstream identifier
+    validations:
+      required: true
+  - type: textarea
+    id: boundaries
+    attributes:
+      label: Published affected and fixed versions
+    validations:
+      required: true
+  - type: checkboxes
+    id: confirmation
+    attributes:
+      label: Confirmation
+      options:
+        - label: I have not included exploit payloads, private reports, credentials or customer data.
+          required: true
+        - label: I understand that this proposal remains untrusted until manual review.
+          required: true

@@ -1,0 +1,11 @@
+{
+  "schema_version": 1,
+  "record_id": "prestashop-core-8.2.8-security-release",
+  "product": "PrestaShop Core",
+  "release": "8.2.8",
+  "published": "2026-08-18",
+  "retrieved_at": "2026-09-06",
+  "summary": "Version de sécurité corrigeant cinq vulnérabilités, dont trois High.",
+  "source": "https://build.prestashop-project.org/news/2026/prestashop-8-2-8-security-release/",
+  "source_authority": "PrestaShop Project"
+}

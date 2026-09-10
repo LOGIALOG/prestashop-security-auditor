@@ -1,0 +1,34 @@
+name: Extractor proposal
+description: Propose a passive PrestaShop detection rule with synthetic fixtures
+title: "feat: add extractor for "
+labels: [extractor]
+body:
+  - type: textarea
+    id: signal
+    attributes:
+      label: Public passive signal
+      description: Explain the same-origin GET response metadata or content pattern without using client data.
+    validations:
+      required: true
+  - type: textarea
+    id: uncertainty
+    attributes:
+      label: Confidence and false-positive controls
+      description: Explain when the result must remain an asset residue or require privileged confirmation.
+    validations:
+      required: true
+  - type: textarea
+    id: fixtures
+    attributes:
+      label: Synthetic positive and negative fixtures
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: The proposal needs no POST, authentication, exploit payload, bypass or cross-origin request.
+          required: true
+        - label: All examples use synthetic data and reserved domains.
+          required: true

@@ -1,0 +1,15 @@
+{
+  "schema_version": "1.0",
+  "policy_id": "logialog.triage",
+  "title": "LOGIALOG triage gate",
+  "allow_demo": false,
+  "minimum_score": 40,
+  "fail_on_statuses": [],
+  "maximum_counts": {
+    "confirmed": 10,
+    "likely": 10,
+    "requires_access": 20
+  },
+  "minimum_evidence_confidence": "low",
+  "require_report_hash": true
+}

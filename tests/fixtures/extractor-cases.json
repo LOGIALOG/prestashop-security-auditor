@@ -1,0 +1,14 @@
+[
+  {"name":"module path positive","body":"<img src=\"/modules/samplemodule/logo.png\">","content_type":"text/html","expected":[["samplemodule","module_path"]]},
+  {"name":"module path negative","body":"<img src=\"/module-assets/samplemodule.png\">","content_type":"text/html","expected":[]},
+  {"name":"data attribute positive","body":"<div data-module-name=\"blockwishlist\"></div>","content_type":"text/html","expected":[["blockwishlist","data_module_name"]]},
+  {"name":"data attribute negative","body":"<div data-module=\"blockwishlist\"></div>","content_type":"text/html","expected":[]},
+  {"name":"javascript namespace positive","body":"<script>moduleName = 'samplemodule';</script>","content_type":"text/html","expected":[["samplemodule","javascript_namespace"]]},
+  {"name":"javascript namespace negative","body":"<script>moduleNames = 'samplemodule';</script>","content_type":"text/html","expected":[]},
+  {"name":"compiled identifier positive","body":".productcomments-widget{display:block}","content_type":"text/css","expected":[["productcomments","compiled_asset_identifier"]]},
+  {"name":"compiled identifier boundary negative","body":".myproductcommentsplus{display:block}","content_type":"text/css","expected":[]},
+  {"name":"prestashop class positive","body":"<body class=\"page-index ps_827\"></body>","content_type":"text/html","expected":[["prestashop","ps_html_class"]]},
+  {"name":"prestashop class negative","body":"<body class=\"page-index ps-82\"></body>","content_type":"text/html","expected":[]},
+  {"name":"theme path positive","body":"<link href=\"/themes/classic/assets/theme.css\">","content_type":"text/html","expected":[["classic","theme_asset_path"]]},
+  {"name":"theme path negative","body":"<link href=\"/theme/classic/assets/theme.css\">","content_type":"text/html","expected":[]}
+]

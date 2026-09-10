@@ -1,0 +1,28 @@
+.report-actions {
+  display: flex !important;
+  flex: initial !important;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.export-link {
+  border: 1px solid #08a9c1;
+  color: #07879a;
+  border-radius: 9px;
+  padding: 0.625rem 0.8125rem;
+  font-weight: 650;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .report-box,
+  .report-actions {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .report-actions a {
+    justify-content: center;
+    text-align: center;
+  }
+}

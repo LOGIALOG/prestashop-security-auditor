@@ -1,0 +1,8 @@
+{
+  "schema_version": "1.0",
+  "brand_name": "Agence Exemple",
+  "report_title": "Rapport de sécurité PrestaShop",
+  "primary_color": "#082f53",
+  "accent_color": "#0faec4",
+  "contact_url": "https://agency.example/security"
+}

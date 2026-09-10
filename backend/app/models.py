@@ -1,0 +1,125 @@
+from __future__ import annotations
+
+from datetime import datetime, timezone
+from enum import Enum
+from typing import Literal
+
+from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
+
+
+class Status(str, Enum):
+    CONFIRMED = "CONFIRMED"
+    LIKELY = "LIKELY"
+    REQUIRES_ACCESS = "REQUIRES_ACCESS"
+    ASSET_RESIDUE = "ASSET_RESIDUE"
+    NOT_AFFECTED = "NOT_AFFECTED"
+    HARDENING = "HARDENING"
+
+
+class Evidence(BaseModel):
+    url: str
+    captured_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    evidence_type: str
+    excerpt: str
+    response_sha256: str
+    confidence: Literal["high", "medium", "low"]
+    detection_method: str
+
+
+class Finding(BaseModel):
+    is_demo: bool = False
+    subject: str
+    status: Status
+    severity: str = "Information"
+    version: str | None = None
+    cve: str | None = None
+    interpretation: str
+    business_risk: str
+    remediation: str
+    source: str | None = None
+    access_required: str | None = None
+    evidence: list[Evidence] = Field(default_factory=list)
+
+    @model_validator(mode="after")
+    def real_findings_require_evidence(self) -> "Finding":
+        if not self.is_demo and not self.evidence:
+            raise ValueError("Un finding réel doit contenir au moins une preuve enregistrée")
+        return self
+
+
+class AuditRequest(BaseModel):
+    target: HttpUrl
+    authorization_confirmed: bool
+    public_pages: list[HttpUrl] = Field(default_factory=list)
+    max_requests: int = Field(default=20, ge=1, le=20)
+    delay_seconds: float = Field(default=1.0, ge=1.0, le=10.0)
+
+    @field_validator("authorization_confirmed")
+    @classmethod
+    def authorization_required(cls, value: bool) -> bool:
+        if not value:
+            raise ValueError("Une autorisation explicite est obligatoire")
+        return value
+
+
+class AuditResult(BaseModel):
+    is_demo: bool = False
+    target: str
+    id: str
+    domain: str
+    started_at: datetime
+    completed_at: datetime
+    request_count: int
+    scope: list[str]
+    findings: list[Finding]
+    headers: dict[str, str]
+    cookies: list[dict[str, str | bool]]
+    report_path: str | None = None
+    report_sha256: str | None = None
+    score: "ScoreResult | None" = None
+
+    @model_validator(mode="after")
+    def mode_consistency(self) -> "AuditResult":
+        if self.is_demo and self.target != "demo.local":
+            raise ValueError("Les données de démonstration doivent cibler demo.local")
+        if any(f.is_demo != self.is_demo for f in self.findings):
+            raise ValueError("Le mode des findings doit correspondre au mode de l'audit")
+        return self
+
+
+class ScoreFactor(BaseModel):
+    subject: str
+    status: Status
+    points: int
+    reason: str
+
+
+class ScoreResult(BaseModel):
+    value: int = Field(ge=0, le=100)
+    formula: str
+    factors: list[ScoreFactor]
+    previous_comparison: int | None = None
+
+
+class FindingChange(BaseModel):
+    subject: str
+    cve: str | None = None
+    previous_status: Status | None = None
+    current_status: Status | None = None
+    previous_version: str | None = None
+    current_version: str | None = None
+
+
+class AuditComparison(BaseModel):
+    audit_id: str
+    previous_audit_id: str | None = None
+    domain: str
+    available: bool
+    score_delta: int | None = None
+    added: list[FindingChange] = Field(default_factory=list)
+    resolved: list[FindingChange] = Field(default_factory=list)
+    changed: list[FindingChange] = Field(default_factory=list)
+    unchanged_count: int = 0
+
+
+AuditResult.model_rebuild()

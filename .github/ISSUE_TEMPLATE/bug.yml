@@ -1,0 +1,35 @@
+name: Bug report
+description: Report a reproducible defect without client or security-sensitive data
+title: "fix: "
+labels: [bug]
+body:
+  - type: markdown
+    attributes:
+      value: Do not include real-shop reports, credentials, tokens, personal data or unredacted captured responses.
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Observed behavior
+      description: Describe the defect using reserved domains or synthetic data.
+    validations:
+      required: true
+  - type: textarea
+    id: expected
+    attributes:
+      label: Expected behavior
+    validations:
+      required: true
+  - type: textarea
+    id: reproduction
+    attributes:
+      label: Safe reproduction
+      description: Provide minimal steps using demo.local or a local fixture.
+    validations:
+      required: true
+  - type: checkboxes
+    id: safety
+    attributes:
+      label: Safety confirmation
+      options:
+        - label: This report contains no real client data or undisclosed vulnerability details.
+          required: true
