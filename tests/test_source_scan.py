@@ -1,6 +1,7 @@
 import json
 
 from backend.app.source_scan import render_cyclonedx, scan_local_source
+from backend.app.version import VERSION
 
 
 def test_local_source_inventory_and_cyclonedx(tmp_path):
@@ -29,6 +30,7 @@ def test_local_source_inventory_and_cyclonedx(tmp_path):
     assert sbom["components"][2]["purl"] == "pkg:composer/vendor/package@2.0.0"
     assert render_cyclonedx(inventory)["serialNumber"] == sbom["serialNumber"]
     assert sbom["metadata"]["tools"]["components"][0]["name"] == "LOGIALOG PrestaShop Security Auditor"
+    assert sbom["metadata"]["tools"]["components"][0]["version"] == VERSION
 
 
 def test_local_scan_does_not_follow_symlinked_modules(tmp_path):

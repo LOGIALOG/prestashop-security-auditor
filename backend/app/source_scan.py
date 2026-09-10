@@ -9,6 +9,8 @@ from uuid import NAMESPACE_URL, uuid5
 
 from pydantic import BaseModel, Field
 
+from .version import VERSION
+
 
 class LocalComponent(BaseModel):
     kind: Literal["prestashop-core", "prestashop-module", "composer-package"]
@@ -196,4 +198,4 @@ def render_cyclonedx(inventory: LocalSourceInventory) -> dict:
         if item.kind == "composer-package" and item.version:
             component["purl"] = f"pkg:composer/{item.name}@{item.version.lstrip('v')}"
         components.append(component)
-    return {"bomFormat": "CycloneDX", "specVersion": "1.6", "serialNumber": f"urn:uuid:{uuid5(NAMESPACE_URL, identity)}", "version": 1, "metadata": {"tools": {"components": [{"type": "application", "name": "LOGIALOG PrestaShop Security Auditor", "version": "1.3.0"}]}}, "components": components}
+    return {"bomFormat": "CycloneDX", "specVersion": "1.6", "serialNumber": f"urn:uuid:{uuid5(NAMESPACE_URL, identity)}", "version": 1, "metadata": {"tools": {"components": [{"type": "application", "name": "LOGIALOG PrestaShop Security Auditor", "version": VERSION}]}}, "components": components}

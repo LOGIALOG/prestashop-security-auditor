@@ -20,6 +20,7 @@ jobs:
           cache-dependency-path: backend/requirements-dev.txt
       - run: python -m pip install -r backend/requirements-dev.txt
       - run: python -m backend.app.cli advisories validate
+      - run: python -m backend.app.cli advisories verify-signature --manifest advisories/snapshot-manifest.json --signature advisories/snapshot-manifest.sig.json --public-key keys/logialog-ed25519-public.pem
       - run: python -m backend.app.cli repository validate
       - run: python -m pytest tests -q
 

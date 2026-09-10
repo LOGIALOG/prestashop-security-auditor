@@ -59,3 +59,5 @@ Verify with the published Ed25519 public key:
 ```
 
 The project never generates or stores the production private key. Key creation, backup, rotation and revocation are owner-controlled release operations. `keys/private/` is ignored as defense in depth, but production private keys should remain outside the checkout.
+
+The public repository includes `keys/logialog-ed25519-public.pem` and the detached `advisories/snapshot-manifest.sig.json`. Their production key ID is `4b563811547e5518`; CI verifies the signature on every change. The encrypted private key and its Windows DPAPI-protected recovery secret are stored outside the checkout and restricted to the owner account.

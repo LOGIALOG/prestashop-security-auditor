@@ -8,12 +8,13 @@ from pathlib import Path
 
 from .models import AuditResult
 from .report_profile import ReportProfile
+from .version import VERSION
 
 ROOT = Path(__file__).resolve().parents[2]
 DISCLAIMER = "Cette démonstration illustre l’impact potentiel de la vulnérabilité publiée. Elle ne constitue pas une preuve que le site client a été exploité ou que sa version installée est vulnérable."
 DEMO_WATERMARK = "DONNÉES FICTIVES — MODE DÉMONSTRATION — NE CONSTITUE PAS UN AUDIT RÉEL."
 ENGINE_NAME = "LOGIALOG PrestaShop Security Auditor"
-ENGINE_VERSION = "1.4.0"
+ENGINE_VERSION = VERSION
 DEFAULT_LOGO_PATH = ROOT / "frontend" / "public" / "brand" / "logialog-full.png"
 DEFAULT_MARK_PATH = ROOT / "frontend" / "public" / "brand" / "logialog-mark.png"
 

@@ -9,6 +9,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 from .advisories import validate_advisory_files, validate_advisory_manifest
+from .manifest_signing import verify_manifest_signature
 from .repository_safety import validate_repository_safety
 
 
@@ -49,6 +50,15 @@ def run_doctor(root: Path) -> DoctorReport:
             "advisory_snapshot",
             lambda: (validate_advisory_files(repository / "advisories"), validate_advisory_manifest(repository / "advisories")),
             "Bundled advisory records and SHA-256 manifest are valid.",
+        ),
+        _required(
+            "advisory_signature",
+            lambda: verify_manifest_signature(
+                repository / "advisories" / "snapshot-manifest.json",
+                repository / "advisories" / "snapshot-manifest.sig.json",
+                repository / "keys" / "logialog-ed25519-public.pem",
+            ),
+            "Published advisory snapshot signature is valid.",
         ),
         _required(
             "repository_safety",

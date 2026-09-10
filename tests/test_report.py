@@ -8,6 +8,7 @@ from pydantic import ValidationError
 from backend.app.models import AuditResult, Evidence, Finding, Status
 from backend.app.report import render_report
 from backend.app.report_profile import ReportProfile
+from backend.app.version import VERSION
 
 
 def test_report_displays_requires_access_and_disclaimer():
@@ -38,7 +39,7 @@ def test_white_label_profile_keeps_logialog_provenance_in_metadata():
     html,_=render_report(AuditResult.model_validate(data),profile)
     assert "Agence Exemple" in html
     assert "--primary:#123456" in html
-    assert "name='generator' content='LOGIALOG PrestaShop Security Auditor 1.4.0'" in html
+    assert f"name='generator' content='LOGIALOG PrestaShop Security Auditor {VERSION}'" in html
     assert "name='logialog:report-profile-schema' content='1.0'" in html
     assert "DONNÉES FICTIVES — MODE DÉMONSTRATION" in html
 

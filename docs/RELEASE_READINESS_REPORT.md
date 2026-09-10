@@ -16,7 +16,7 @@ Decision: public repository published; release-readiness gates passed.
 | CLI contracts | Authorization, success, confirmed-finding and network-failure tests | Pass |
 | Export contracts | JSON 1.0, SARIF 2.1.0 and CycloneDX 1.6 compatibility tests | Pass |
 | Community preparation | Contribution guide, code of conduct, PR template and safe issue forms | Pass |
-| Backend verification | Python 3.13.2 and 108 tests | Pass |
+| Backend verification | Python 3.13.2 and 121 tests | Pass |
 | Frontend verification | 6 unit tests, 3 Chromium accessibility/responsive tests and production build on Node.js 22.23.2 | Pass |
 | Frontend dependency integrity | Direct versions pinned, deterministic `npm ci`, compatible Node engine declared and npm audit reports zero vulnerabilities | Pass |
 | Interface localization | Full French, English and Arabic UI chrome; RTL document direction; versioned persistence; desktop/mobile browser QA with zero console errors | Pass |
@@ -33,7 +33,7 @@ Decision: public repository published; release-readiness gates passed.
 | Git operations | Owner-authorized public repository created and `codex/release-ready` pushed to remote `main` | Pass |
 | Public presentation assets | Official LOGIALOG logos, synthetic dashboard screenshot and self-contained report screenshot | Pass |
 | Private disclosure preparation | Owner-approved GitHub Private Vulnerability Reporting policy and public-issue routing | Pass |
-| Clean-checkout verification | Advisory and repository gates, 108 backend tests, PHP lint, deterministic frontend install/build and 3 Chromium tests | Pass |
+| Clean-checkout verification | Advisory signature, repository gates, 121 backend tests, PHP lint, deterministic frontend install/build and 3 Chromium tests | Pass |
 | Local HTTP runtime | Health, isolated demo, branded HTML report, JSON/SARIF downloads, authorization rejection and fictional lab endpoints | Pass |
 | Docker context privacy | Root and frontend build contexts exclude reports, secrets, private keys, virtual environments and generated artifacts | Pass |
 | Container CI preparation | Compose configuration, backend/frontend runtime, demo isolation and fictional lab smoke checks run only against localhost | Pass |
@@ -46,13 +46,14 @@ Decision: public repository published; release-readiness gates passed.
 
 ## Owner decisions before a versioned release
 
-1. Decide whether and when to create the `v1.0.0` tag and GitHub Release.
+The repository owner approved creation of the `v1.0.0` tag and GitHub Release on 2026-09-10.
 
-## Remaining technical follow-ups
+## Release cryptography
 
-- Generate the production Ed25519 key outside the checkout and publish only the approved public key; implementation and verification tests are complete.
-- Re-review pinned GitHub Actions commit SHAs during dependency updates.
+- The encrypted production Ed25519 private key is stored outside the checkout with a Windows owner-only ACL; its recovery secret is protected with Windows DPAPI.
+- Only public key `4b563811547e5518` and the detached advisory snapshot signature are published.
+- GitHub Actions commit SHAs were reviewed for this release and remain subject to review during future dependency updates.
 
 ## Release decision
 
-The planned implementation work is complete, published and verified locally and on GitHub Actions. The public repository is available at `https://github.com/LOGIALOG/prestashop-security-auditor`, Private Vulnerability Reporting is enabled, and no formal version tag or GitHub Release has been created.
+The planned implementation work is complete and published at `https://github.com/LOGIALOG/prestashop-security-auditor`. Private Vulnerability Reporting is enabled, the advisory snapshot is signed, and the repository is ready for the approved `v1.0.0` tag and GitHub Release.

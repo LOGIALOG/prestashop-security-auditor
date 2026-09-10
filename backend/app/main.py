@@ -12,6 +12,7 @@ from .exports import render_json_export, render_sarif
 from .models import AuditComparison, AuditRequest, AuditResult
 from .report import render_report, save_report
 from .scanner import AuditPolicyError, PassiveScanner
+from .version import VERSION
 
 @asynccontextmanager
 async def lifespan(_: FastAPI):
@@ -19,7 +20,7 @@ async def lifespan(_: FastAPI):
     yield
 
 
-app = FastAPI(title="LOGIALOG PrestaShop Security Auditor", version="1.0.0", lifespan=lifespan)
+app = FastAPI(title="LOGIALOG PrestaShop Security Auditor", version=VERSION, lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=["http://127.0.0.1:5173"], allow_methods=["GET", "POST"], allow_headers=["*"])
 
 

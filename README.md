@@ -147,6 +147,14 @@ Valider les advisories embarqués :
 
 Après une modification revue des advisories, régénérer leur manifest SHA-256 avec `python -m backend.app.cli advisories manifest`. La validation CI vérifie ensuite les records et le manifest.
 
+Le snapshot publié est signé avec la clé Ed25519 LOGIALOG. Vérifier sa provenance avec :
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.app.cli advisories verify-signature --manifest advisories\snapshot-manifest.json --signature advisories\snapshot-manifest.sig.json --public-key keys\logialog-ed25519-public.pem
+```
+
+L’identifiant de la clé de production publiée est `4b563811547e5518`. La clé privée chiffrée reste hors du repository.
+
 Les imports de sources externes passent obligatoirement par une proposition locale `pending`; ils ne modifient jamais automatiquement la base approuvée. Voir [docs/ADVISORY_REVIEW.md](docs/ADVISORY_REVIEW.md).
 
 Exécuter un audit autorisé et produire un SARIF :

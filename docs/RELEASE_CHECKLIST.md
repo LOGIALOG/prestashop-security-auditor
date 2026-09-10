@@ -32,7 +32,7 @@
 
 ## Final verification
 
-- [x] Run the complete backend suite on Python 3.13 (120 tests).
+- [x] Run the complete backend suite on Python 3.13 (121 tests).
 - [x] Run frontend tests and production build on Node.js 22.
 - [x] Add a localhost-only Docker Compose build and runtime smoke job to GitHub CI.
 - [x] Validate all GitHub workflow and issue-template YAML in the backend test suite.
@@ -42,4 +42,6 @@
 - [x] Repository owner authorized autonomous local completion and a local release commit.
 - [x] Obtain explicit approval before public repository creation and the first push.
 - [x] Protect remote `main` with required backend, frontend and container checks; block force-push and deletion.
-- [ ] Obtain explicit approval before creating a versioned GitHub Release or tag.
+- [x] Obtain explicit approval before creating a versioned GitHub Release or tag.
+- [x] Generate the encrypted production Ed25519 key outside the checkout and publish only its public key.
+- [x] Sign the released advisory snapshot and verify its detached signature in CI.

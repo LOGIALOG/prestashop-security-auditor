@@ -8,7 +8,7 @@ Two network-free commands make the execution boundary reviewable before an audit
 .\.venv\Scripts\python.exe -m backend.app.cli doctor --output reports\doctor.json
 ```
 
-Required checks cover Python 3.13+, the bundled advisory snapshot and repository publication safety. Node.js, npm, PHP, Docker and Git are reported as optional runtime information because direct and containerized execution use different subsets. The report sets `network_access` to `false`; required-check failure returns exit code `12`.
+Required checks cover Python 3.13+, the bundled advisory snapshot, its production Ed25519 signature and repository publication safety. Node.js, npm, PHP, Docker and Git are reported as optional runtime information because direct and containerized execution use different subsets. The report sets `network_access` to `false`; required-check failure returns exit code `12`.
 
 ## Scan plan
 

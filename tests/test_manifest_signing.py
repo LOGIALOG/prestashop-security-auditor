@@ -1,4 +1,5 @@
 import json
+from pathlib import Path
 
 import pytest
 from cryptography.hazmat.primitives import serialization
@@ -53,3 +54,15 @@ def test_signature_rejects_wrong_public_key(tmp_path):
     signature.write_text(sign_manifest(manifest, private).model_dump_json(), encoding="utf-8")
     with pytest.raises(ValueError, match="clé publique"):
         verify_manifest_signature(manifest, signature, wrong_path)
+
+
+def test_published_advisory_snapshot_signature_is_valid():
+    root = Path(__file__).parents[1]
+
+    verified = verify_manifest_signature(
+        root / "advisories" / "snapshot-manifest.json",
+        root / "advisories" / "snapshot-manifest.sig.json",
+        root / "keys" / "logialog-ed25519-public.pem",
+    )
+
+    assert verified.key_id == "4b563811547e5518"

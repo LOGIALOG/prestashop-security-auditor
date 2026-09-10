@@ -17,7 +17,12 @@ def test_doctor_reports_required_checks_without_network(monkeypatch):
     assert report.ready is True
     assert report.network_access is False
     required = {check.check_id: check.status for check in report.checks if check.required}
-    assert required == {"python": "PASS", "advisory_snapshot": "PASS", "repository_safety": "PASS"}
+    assert required == {
+        "python": "PASS",
+        "advisory_snapshot": "PASS",
+        "advisory_signature": "PASS",
+        "repository_safety": "PASS",
+    }
 
 
 def test_doctor_cli_returns_dedicated_failure_code(tmp_path):

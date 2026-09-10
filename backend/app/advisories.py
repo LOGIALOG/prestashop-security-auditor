@@ -60,10 +60,12 @@ class CoreSecurityRelease(BaseModel):
 AdvisoryDocument = ModuleAdvisory | CoreSecurityRelease
 ADVISORY_ADAPTER = TypeAdapter(AdvisoryDocument)
 MANIFEST_NAME = "snapshot-manifest.json"
+SIGNATURE_NAME = "snapshot-manifest.sig.json"
 
 
 def advisory_paths(directory: Path) -> list[Path]:
-    return [path for path in sorted(directory.glob("*.json")) if path.name != MANIFEST_NAME]
+    metadata_names = {MANIFEST_NAME, SIGNATURE_NAME}
+    return [path for path in sorted(directory.glob("*.json")) if path.name not in metadata_names]
 
 
 def validate_advisory_files(directory: Path | None = None) -> list[Path]:
