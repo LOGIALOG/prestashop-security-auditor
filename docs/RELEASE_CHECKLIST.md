@@ -27,7 +27,7 @@
 - [x] Code of conduct exists.
 - [x] Repository owner approved Apache License 2.0; canonical `LICENSE` and LOGIALOG `NOTICE` files are present.
 - [x] Repository owner selected GitHub Private Vulnerability Reporting as the official security-report channel.
-- [ ] Enable Private Vulnerability Reporting in the public repository security settings after repository creation.
+- [x] Enable Private Vulnerability Reporting in the public repository security settings.
 
 ## Final verification
 
@@ -35,8 +35,9 @@
 - [x] Run frontend tests and production build on Node.js 22.
 - [x] Add a localhost-only Docker Compose build and runtime smoke job to GitHub CI.
 - [x] Validate all GitHub workflow and issue-template YAML in the backend test suite.
-- [ ] Run a Docker Compose smoke test on a Docker-equipped host.
+- [x] Run the Docker Compose smoke test on a GitHub-hosted Docker runner.
 - [x] Run repository, advisory, backend, frontend, Chromium and PHP gates from a clean checkout.
 - [x] Review `git status`; no files are staged and generated local artifacts are ignored.
 - [x] Repository owner authorized autonomous local completion and a local release commit.
-- [ ] Obtain explicit approval before public repository creation, push, release or publication.
+- [x] Obtain explicit approval before public repository creation and the first push.
+- [ ] Obtain explicit approval before creating a versioned GitHub Release or tag.

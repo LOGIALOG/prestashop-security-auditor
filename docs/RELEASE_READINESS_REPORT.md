@@ -1,7 +1,7 @@
-# Local release-readiness report
+# Release-readiness report
 
 Assessment date: 2026-09-10
-Decision: technically ready for owner review, not approved for publication.
+Decision: public repository published; release-readiness gates passed.
 
 ## Verified outcomes
 
@@ -30,7 +30,7 @@ Decision: technically ready for owner review, not approved for publication.
 | Companion inventory | PHP syntax checks, HTTPS timestamped HMAC, GET-only response and strict no-secret schema | Pass |
 | Team history | SQLite v2 append-only review journal with actor labels and verifiable global SHA-256 chain | Pass |
 | External safety | No real external shop was scanned during the night plan | Pass |
-| Git operations | Local release commits created on `codex/release-ready`; no remote, push, release or publication performed | Pass |
+| Git operations | Owner-authorized public repository created and `codex/release-ready` pushed to remote `main` | Pass |
 | Public presentation assets | Official LOGIALOG logos, synthetic dashboard screenshot and self-contained report screenshot | Pass |
 | Private disclosure preparation | Owner-approved GitHub Private Vulnerability Reporting policy and public-issue routing | Pass |
 | Clean-checkout verification | Advisory and repository gates, 108 backend tests, PHP lint, deterministic frontend install/build and 3 Chromium tests | Pass |
@@ -39,18 +39,18 @@ Decision: technically ready for owner review, not approved for publication.
 | Container CI preparation | Compose configuration, backend/frontend runtime, demo isolation and fictional lab smoke checks run only against localhost | Pass |
 | GitHub configuration integrity | Workflow and issue-template YAML parsing plus container-smoke and private-report routing assertions | Pass |
 | GitHub Actions runtime | Official checkout/setup releases pinned to reviewed immutable SHAs with current runner runtime support | Pass |
+| Public CI verification | Backend, frontend, Chromium and Docker Compose jobs passed on GitHub Actions run `34486035807` | Pass |
+| Private vulnerability reporting | GitHub repository API confirms private vulnerability reporting is enabled | Pass |
 
-## Owner decisions before public release
+## Owner decisions before a versioned release
 
-1. Explicitly authorize creation of the public GitHub repository and the first push.
+1. Decide whether and when to create the `v1.0.0` tag and GitHub Release.
 
 ## Remaining technical follow-ups
 
-- Run the prepared Docker Compose smoke job on a Docker-equipped GitHub runner after the authorized first push; Docker is unavailable on the current machine.
-- Enable GitHub Private Vulnerability Reporting immediately after repository creation and before publication.
 - Generate the production Ed25519 key outside the checkout and publish only the approved public key; implementation and verification tests are complete.
 - Re-review pinned GitHub Actions commit SHAs during dependency updates.
 
-## Local release decision
+## Release decision
 
-The planned implementation work is complete and verified locally. Publication remains intentionally blocked until the owner authorizes creation of the public repository and the first push. Private Vulnerability Reporting must then be enabled in GitHub before publication; the Docker Compose runtime smoke test also remains pending on a Docker-equipped host.
+The planned implementation work is complete, published and verified locally and on GitHub Actions. The public repository is available at `https://github.com/LOGIALOG/prestashop-security-auditor`, Private Vulnerability Reporting is enabled, and no formal version tag or GitHub Release has been created.
