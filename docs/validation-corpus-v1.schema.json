@@ -1,0 +1,462 @@
+{
+  "$defs": {
+    "AdvisoryTruth": {
+      "additionalProperties": false,
+      "properties": {
+        "review_status": {
+          "enum": [
+            "REVIEWED",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ],
+          "title": "Review Status",
+          "type": "string"
+        },
+        "advisory_record_id": {
+          "anyOf": [
+            {
+              "pattern": "^synthetic-advisory-[a-z0-9-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Advisory Record Id"
+        },
+        "truth_classification": {
+          "enum": [
+            "AFFECTED",
+            "FIXED",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ],
+          "title": "Truth Classification",
+          "type": "string"
+        },
+        "observed_classification": {
+          "enum": [
+            "AFFECTED",
+            "FIXED",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ],
+          "title": "Observed Classification",
+          "type": "string"
+        },
+        "reviewer_id": {
+          "pattern": "^synthetic-reviewer-[a-z0-9-]+$",
+          "title": "Reviewer Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "review_status",
+        "truth_classification",
+        "observed_classification",
+        "reviewer_id"
+      ],
+      "title": "AdvisoryTruth",
+      "type": "object"
+    },
+    "CorpusDetector": {
+      "additionalProperties": false,
+      "properties": {
+        "extractor_id": {
+          "pattern": "^synthetic-extractor-[a-z0-9-]+$",
+          "title": "Extractor Id",
+          "type": "string"
+        },
+        "extractor_version": {
+          "pattern": "^\\d+\\.\\d+\\.\\d+$",
+          "title": "Extractor Version",
+          "type": "string"
+        },
+        "detection_method": {
+          "enum": [
+            "MODULE_PATH",
+            "ASSET_VERSION",
+            "NO_SIGNAL",
+            "CONFLICTING_SIGNALS"
+          ],
+          "title": "Detection Method",
+          "type": "string"
+        },
+        "confidence_tier": {
+          "enum": [
+            "HIGH",
+            "MEDIUM",
+            "LOW"
+          ],
+          "title": "Confidence Tier",
+          "type": "string"
+        },
+        "observed_component": {
+          "anyOf": [
+            {
+              "pattern": "^synthetic-module-[a-z0-9-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed Component"
+        },
+        "observed_version": {
+          "anyOf": [
+            {
+              "pattern": "^\\d+\\.\\d+\\.\\d+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Observed Version"
+        }
+      },
+      "required": [
+        "extractor_id",
+        "extractor_version",
+        "detection_method",
+        "confidence_tier"
+      ],
+      "title": "CorpusDetector",
+      "type": "object"
+    },
+    "CorpusScope": {
+      "additionalProperties": false,
+      "properties": {
+        "page_category": {
+          "enum": [
+            "HOME",
+            "ROBOTS",
+            "PUBLIC_PAGE"
+          ],
+          "title": "Page Category",
+          "type": "string"
+        },
+        "request_budget": {
+          "maximum": 20,
+          "minimum": 1,
+          "title": "Request Budget",
+          "type": "integer"
+        },
+        "requests_sent": {
+          "maximum": 20,
+          "minimum": 0,
+          "title": "Requests Sent",
+          "type": "integer"
+        },
+        "network_access": {
+          "const": false,
+          "title": "Network Access",
+          "type": "boolean"
+        }
+      },
+      "required": [
+        "page_category",
+        "request_budget",
+        "requests_sent",
+        "network_access"
+      ],
+      "title": "CorpusScope",
+      "type": "object"
+    },
+    "CorpusStrata": {
+      "additionalProperties": false,
+      "properties": {
+        "core_family": {
+          "enum": [
+            "PS_1_7",
+            "PS_8",
+            "PS_9"
+          ],
+          "title": "Core Family",
+          "type": "string"
+        },
+        "hosting": {
+          "enum": [
+            "SHARED",
+            "VPS_DEDICATED",
+            "MANAGED",
+            "CONTAINERIZED"
+          ],
+          "title": "Hosting",
+          "type": "string"
+        },
+        "edge_layer": {
+          "enum": [
+            "NONE",
+            "CDN_ONLY",
+            "WAF_ONLY",
+            "CDN_WAF"
+          ],
+          "title": "Edge Layer",
+          "type": "string"
+        },
+        "module_provenance": {
+          "enum": [
+            "OFFICIAL_VENDOR",
+            "COMMUNITY",
+            "CUSTOM_PRIVATE"
+          ],
+          "title": "Module Provenance",
+          "type": "string"
+        },
+        "version_exposure": {
+          "enum": [
+            "EXACT",
+            "PARTIAL",
+            "ABSENT",
+            "CONFLICTING_SPOOFED"
+          ],
+          "title": "Version Exposure",
+          "type": "string"
+        },
+        "asset_condition": {
+          "enum": [
+            "CURRENT",
+            "STALE_CACHE",
+            "RENAMED",
+            "MINIFIED_BUNDLED",
+            "REMOVED"
+          ],
+          "title": "Asset Condition",
+          "type": "string"
+        }
+      },
+      "required": [
+        "core_family",
+        "hosting",
+        "edge_layer",
+        "module_provenance",
+        "version_exposure",
+        "asset_condition"
+      ],
+      "title": "CorpusStrata",
+      "type": "object"
+    },
+    "FingerprintTruth": {
+      "additionalProperties": false,
+      "properties": {
+        "status": {
+          "enum": [
+            "AVAILABLE",
+            "UNAVAILABLE",
+            "CONFLICTING"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "source_type": {
+          "enum": [
+            "LOCAL_METADATA",
+            "AUTHENTICATED_BACK_OFFICE",
+            "DEPLOYMENT_MANIFEST",
+            "NONE"
+          ],
+          "title": "Source Type",
+          "type": "string"
+        },
+        "component_present": {
+          "anyOf": [
+            {
+              "type": "boolean"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Component Present"
+        },
+        "exact_component": {
+          "anyOf": [
+            {
+              "pattern": "^synthetic-module-[a-z0-9-]+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exact Component"
+        },
+        "exact_version": {
+          "anyOf": [
+            {
+              "pattern": "^\\d+\\.\\d+\\.\\d+$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Exact Version"
+        },
+        "evidence_sha256": {
+          "anyOf": [
+            {
+              "pattern": "^[0-9a-f]{64}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Evidence Sha256"
+        },
+        "reviewer_id": {
+          "pattern": "^synthetic-reviewer-[a-z0-9-]+$",
+          "title": "Reviewer Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "status",
+        "source_type",
+        "reviewer_id"
+      ],
+      "title": "FingerprintTruth",
+      "type": "object"
+    },
+    "ValidationRecord": {
+      "additionalProperties": false,
+      "properties": {
+        "schema_version": {
+          "const": "1.0",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "shop_id": {
+          "pattern": "^synthetic-shop-\\d{3}$",
+          "title": "Shop Id",
+          "type": "string"
+        },
+        "observation_id": {
+          "pattern": "^synthetic-observation-\\d{3}$",
+          "title": "Observation Id",
+          "type": "string"
+        },
+        "collected_at": {
+          "format": "date-time",
+          "title": "Collected At",
+          "type": "string"
+        },
+        "scope": {
+          "$ref": "#/$defs/CorpusScope"
+        },
+        "strata": {
+          "$ref": "#/$defs/CorpusStrata"
+        },
+        "detector": {
+          "$ref": "#/$defs/CorpusDetector"
+        },
+        "fingerprint_truth": {
+          "$ref": "#/$defs/FingerprintTruth"
+        },
+        "fingerprint_outcome": {
+          "enum": [
+            "TP",
+            "FP",
+            "FN",
+            "CORRECT_ABSTENTION",
+            "INDETERMINATE",
+            "GROUND_TRUTH_CONFLICT"
+          ],
+          "title": "Fingerprint Outcome",
+          "type": "string"
+        },
+        "advisory_truth": {
+          "$ref": "#/$defs/AdvisoryTruth"
+        },
+        "advisory_outcome": {
+          "enum": [
+            "CORRECT",
+            "INCORRECT",
+            "UNKNOWN",
+            "NOT_APPLICABLE"
+          ],
+          "title": "Advisory Outcome",
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "shop_id",
+        "observation_id",
+        "collected_at",
+        "scope",
+        "strata",
+        "detector",
+        "fingerprint_truth",
+        "fingerprint_outcome",
+        "advisory_truth",
+        "advisory_outcome"
+      ],
+      "title": "ValidationRecord",
+      "type": "object"
+    }
+  },
+  "$id": "urn:logialog:schema:synthetic-validation-corpus:1.0",
+  "additionalProperties": false,
+  "properties": {
+    "format": {
+      "const": "logialog-synthetic-validation-corpus",
+      "title": "Format",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "1.0",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "synthetic": {
+      "const": true,
+      "title": "Synthetic",
+      "type": "boolean"
+    },
+    "real_client_data": {
+      "const": false,
+      "title": "Real Client Data",
+      "type": "boolean"
+    },
+    "real_domains": {
+      "const": false,
+      "title": "Real Domains",
+      "type": "boolean"
+    },
+    "external_collection": {
+      "const": false,
+      "title": "External Collection",
+      "type": "boolean"
+    },
+    "records": {
+      "items": {
+        "$ref": "#/$defs/ValidationRecord"
+      },
+      "minItems": 1,
+      "title": "Records",
+      "type": "array"
+    }
+  },
+  "required": [
+    "format",
+    "schema_version",
+    "synthetic",
+    "real_client_data",
+    "real_domains",
+    "external_collection",
+    "records"
+  ],
+  "title": "ValidationCorpus",
+  "type": "object"
+}

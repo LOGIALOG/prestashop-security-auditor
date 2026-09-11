@@ -1,6 +1,6 @@
 # Validation corpus protocol
 
-Status: draft protocol for review; no client-data collection is authorized by this document.
+Status: synthetic rehearsal schema v1 implemented; no client-data collection is authorized by this document.
 
 This protocol defines how LOGIALOG PrestaShop Security Auditor may later be evaluated on a consented, minimized and reproducible corpus. Its purpose is to show where the tool is correct, where it fails and where it remains indeterminate. It is not designed to prove compromise, certify a shop as secure or manufacture stronger product claims.
 
@@ -134,6 +134,20 @@ Each observation record requires the following logical fields before the pilot s
 
 Absolute filesystem paths and raw evidence content are not analysis fields.
 
+### Synthetic implementation
+
+The current synthetic-only implementation consists of:
+
+- [validation-corpus-v1.schema.json](validation-corpus-v1.schema.json): versioned JSON Schema generated from the strict Pydantic validation model;
+- [backend/app/validation_corpus.py](../backend/app/validation_corpus.py): offline loader, outcome-coherence rules and recursive privacy rejection;
+- [tests/fixtures/validation-corpus.synthetic.json](../tests/fixtures/validation-corpus.synthetic.json): six obviously synthetic observations covering every fingerprint outcome, every advisory-correlation outcome and all qualitative confidence tiers;
+- [tests/fixtures/validation-corpus.invalid-privacy.json](../tests/fixtures/validation-corpus.invalid-privacy.json): reserved and synthetic negative cases for forbidden fields, URI/domain-like values, email-like values, IPv4/IPv6 addresses, credentials, UNC paths and plausible absolute production paths;
+- [tests/test_validation_corpus.py](../tests/test_validation_corpus.py): schema-drift, malformed-record, privacy, enum-domain and synthetic-validation-path no-network regression tests.
+
+The synthetic timestamps use the year 2000, every identifier is prefixed with `synthetic-`, and every record declares zero requests sent. These fixtures are structural validation data, not product-performance evidence.
+
+`validation-corpus-v1` is frozen only as synthetic rehearsal schema v1. It is not automatically the schema for a future real-client corpus. Any future consented corpus requires a separately versioned schema and an explicit review gate covering consent, minimization, access control, retention and collection behavior before use.
+
 ## 8. Evaluation metrics
 
 ### Fingerprint metrics
@@ -194,14 +208,14 @@ Client-data collection remains blocked until all items are approved:
 
 - [ ] named data controller and research owner;
 - [ ] consent text and authorization record;
-- [ ] machine-readable schema with forbidden-field validation;
+- [x] machine-readable schema with forbidden-field validation, exercised with synthetic fixtures only;
 - [ ] fingerprint ground-truth review form;
 - [ ] advisory ground-truth review form;
 - [ ] stratified sampling targets and recruitment record;
 - [ ] frozen extractor/advisory versions;
 - [ ] metric calculation and exclusion rules;
 - [ ] access-control, retention, deletion and incident procedures;
-- [ ] synthetic end-to-end rehearsal proving that no PII or real domain is exported.
+- [x] synthetic end-to-end rehearsal using no PII or real domain; the synthetic corpus validation path is tested to perform no network access.
 
 Unchecked gates are intentional owner/research prerequisites, not permission to collect opportunistic samples.
 
