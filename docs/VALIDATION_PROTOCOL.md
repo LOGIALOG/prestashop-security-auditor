@@ -208,7 +208,7 @@ Withdrawal and legal-hold handling must be documented before the pilot starts.
 
 Client-data collection remains blocked until all items are approved:
 
-- [ ] named data controller and research owner;
+- [x] named data controller and research owner, using a public research-owner ID with the personal mapping retained privately;
 - [ ] consent text and authorization record;
 - [x] machine-readable schema with forbidden-field validation, exercised with synthetic fixtures only;
 - [ ] fingerprint ground-truth review form;

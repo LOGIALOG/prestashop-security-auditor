@@ -8,7 +8,16 @@ The machine-readable rehearsal is [validation-governance.synthetic.json](../test
 
 ## 1. Owner assignment record
 
-The owner must complete and approve this record before recruitment or collection:
+Owner-approved public assignment:
+
+| Role | Public record |
+| --- | --- |
+| Data controller | `LOGIALOG SARL AU` |
+| Research owner | `logialog-research-owner-01` |
+
+The research owner's full-name mapping is intentionally excluded from the public repository and retained by the owner as a private governance record. The public identifier does not weaken accountability: the private mapping must remain available for authorization, incident handling and audit review.
+
+The private owner record must also contain these details before recruitment or collection:
 
 | Field | Required decision |
 | --- | --- |
@@ -149,11 +158,10 @@ Preparation completed in this repository:
 
 Still requiring real owner action before any real-client activity:
 
-1. name the data controller and research owner;
-2. approve jurisdiction-appropriate consent text and private record storage;
-3. approve numeric sampling targets and recruitment channels;
-4. approve access roles, retention periods, deletion deadlines and incident contacts;
-5. review and version a separate consented-corpus schema;
-6. issue an explicit collection authorization tied to the final freeze record.
+1. approve jurisdiction-appropriate consent text and private record storage;
+2. approve numeric sampling targets and recruitment channels;
+3. approve access roles, retention periods, deletion deadlines and incident contacts;
+4. review and version a separate consented-corpus schema;
+5. issue an explicit collection authorization tied to the final freeze record.
 
-Until all six decisions are recorded, `collection_authorized` remains `false` and no real recruitment, domain handling, evidence collection or production access is permitted.
+Until all five decisions are recorded, `collection_authorized` remains `false` and no real recruitment, domain handling, evidence collection or production access is permitted.

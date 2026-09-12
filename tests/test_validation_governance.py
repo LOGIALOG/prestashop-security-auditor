@@ -170,5 +170,8 @@ def test_canonical_protocol_links_governance_pack_without_approving_collection()
     assert "VALIDATION_GOVERNANCE.md" in protocol
     assert "real-client collection remains blocked" in governance
     assert "collection_authorized` remains `false`" in governance
-    assert "- [ ] named data controller and research owner;" in protocol
+    assert "- [x] named data controller and research owner" in protocol
     assert "- [ ] consent text and authorization record;" in protocol
+    assert "`LOGIALOG SARL AU`" in governance
+    assert "`logialog-research-owner-01`" in governance
+    assert "Abdelmoula Nami" not in governance
