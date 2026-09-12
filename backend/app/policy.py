@@ -58,7 +58,7 @@ class PolicyViolation(BaseModel):
 
 
 class PolicyEvaluation(BaseModel):
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["1.1"] = "1.1"
     policy_id: str
     audit_id: str
     decision: Literal["PASS","FAIL","UNKNOWN"]

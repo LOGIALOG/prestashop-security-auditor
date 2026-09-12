@@ -5,7 +5,7 @@ from pathlib import Path
 import pytest
 from pydantic import ValidationError
 
-from backend.app.models import AuditResult,Evidence,Finding,ScoreResult,Status
+from backend.app.models import AuditResult,Evidence,Finding,ScanIssue,ScoreResult,Status
 from backend.app.policy import PolicyPack,evaluate_policy,load_policy_pack
 
 
@@ -25,6 +25,15 @@ def test_clean_real_audit_passes_agency_release_policy():
     result=evaluate_policy(clean_audit(),policy)
     assert result.decision=="PASS"
     assert result.violations==[]
+
+
+def test_incomplete_policy_result_uses_unknown_aware_schema_version():
+    audit=clean_audit().model_copy(update={"scan_completeness":"INCOMPLETE","scan_issues":[ScanIssue(kind="TRANSPORT_ERROR",url="https://shop.test/")]})
+
+    result=evaluate_policy(audit,PolicyPack(policy_id="test.incomplete",title="Incomplete",fail_on_statuses=[],require_report_hash=False))
+
+    assert result.schema_version=="1.1"
+    assert result.decision=="UNKNOWN"
 
 
 def test_policy_reports_status_score_confidence_and_hash_failures():
