@@ -88,14 +88,14 @@ A convenience or volunteer sample is reported only as performance on that valida
 
 ## 6. Frozen technical inputs
 
-The synthetic rehearsal pins these inputs in the machine-readable manifest:
+The synthetic rehearsal pins these inputs in the machine-readable manifest. Text-file SHA-256 values use UTF-8 content normalized to LF so the freeze is identical across operating systems:
 
 | Input | Frozen value |
 | --- | --- |
 | Baseline `main` commit | `a01d7763e34b8ee231d2d583bee288bac24c0118` |
 | Remote extractor source SHA-256 | `4d5b8b10bfb1ab17beb4650d935a55e43cd0f116771190daaef0413930d85637` |
-| Advisory manifest SHA-256 | `f7c80b4f5422f5ada81bc31dd59e3f7d19a87a08400726a80624041417f38ff5` |
-| Synthetic corpus schema SHA-256 | `86dd4b1ef50ec19883158b0fa3c6c59f4eceb010e5c7a959e9aa427ee57c9dc5` |
+| Advisory manifest SHA-256 | `cf62b3e204e0f03fe37ac0766b562e383b91207b48d992c0ee56688036e1ddcb` |
+| Synthetic corpus schema SHA-256 | `e3d02f8d211b2b657130f0ae7d83cbef892fcdf21857dd7f9d680b7ba181abec` |
 
 These hashes freeze only the synthetic rehearsal. A consented pilot requires a new reviewed freeze record tied to its separately versioned schema, code commit and advisory snapshot.
 

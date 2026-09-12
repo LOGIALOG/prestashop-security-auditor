@@ -20,8 +20,9 @@ def payload() -> dict:
     return json.loads(FIXTURE.read_text(encoding="utf-8"))
 
 
-def sha256(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+def canonical_text_sha256(path: Path) -> str:
+    normalized = path.read_text(encoding="utf-8").replace("\r\n", "\n")
+    return hashlib.sha256(normalized.encode("utf-8")).hexdigest()
 
 
 def test_synthetic_governance_rehearsal_covers_every_preparation_artifact():
@@ -106,9 +107,11 @@ def test_frozen_rehearsal_hashes_match_canonical_inputs():
     frozen = load_validation_governance(FIXTURE).frozen_inputs
     governance = GOVERNANCE_DOC.read_text(encoding="utf-8")
 
-    assert frozen.extractor_source_sha256 == sha256(ROOT / "backend" / "app" / "extractors.py")
-    assert frozen.advisory_manifest_sha256 == sha256(ROOT / "advisories" / "snapshot-manifest.json")
-    assert frozen.synthetic_corpus_schema_sha256 == sha256(ROOT / "docs" / "validation-corpus-v1.schema.json")
+    assert frozen.extractor_source_sha256 == canonical_text_sha256(ROOT / "backend" / "app" / "extractors.py")
+    assert frozen.advisory_manifest_sha256 == canonical_text_sha256(ROOT / "advisories" / "snapshot-manifest.json")
+    assert frozen.synthetic_corpus_schema_sha256 == canonical_text_sha256(
+        ROOT / "docs" / "validation-corpus-v1.schema.json"
+    )
     assert frozen.extractor_state == "FROZEN_FOR_SYNTHETIC_REHEARSAL"
     assert frozen.advisory_state == "FROZEN_FOR_SYNTHETIC_REHEARSAL"
     assert frozen.baseline_commit_sha in governance
