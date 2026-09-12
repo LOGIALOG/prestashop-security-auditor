@@ -1,0 +1,103 @@
+{
+  "format": "logialog-synthetic-validation-governance",
+  "schema_version": "1.0",
+  "created_at": "2000-01-01T00:00:00Z",
+  "synthetic": true,
+  "real_client_data": false,
+  "real_domains": false,
+  "production_access": false,
+  "collection_authorized": false,
+  "approval_state": "PENDING_OWNER_APPROVAL",
+  "roles": {
+    "data_controller_id": "synthetic-owner-controller",
+    "research_owner_id": "synthetic-owner-research",
+    "assignments_real": false,
+    "approval_state": "PENDING_OWNER_APPROVAL"
+  },
+  "artifacts": {
+    "consent_authorization_template": "PRESENT",
+    "fingerprint_truth_form": "PRESENT",
+    "advisory_truth_form": "PRESENT",
+    "sampling_recruitment_template": "PRESENT",
+    "metric_exclusion_rules": "PRESENT",
+    "lifecycle_incident_procedure": "PRESENT"
+  },
+  "sampling": {
+    "dimensions": [
+      "CORE_FAMILY",
+      "HOSTING",
+      "EDGE_LAYER",
+      "MODULE_PROVENANCE",
+      "VERSION_EXPOSURE",
+      "ASSET_CONDITION",
+      "GROUND_TRUTH_STATE"
+    ],
+    "recruitment_fields": [
+      "SYNTHETIC_CANDIDATE_ID",
+      "RECRUITMENT_SOURCE",
+      "SELECTION_MECHANISM",
+      "ELIGIBILITY_STATE",
+      "NON_RESPONSE_STATE",
+      "EXCLUSION_REASON"
+    ],
+    "numeric_targets_state": "PENDING_OWNER_APPROVAL",
+    "real_recruitment_started": false
+  },
+  "review_forms": {
+    "fingerprint_fields": [
+      "SYNTHETIC_OBSERVATION_ID",
+      "TRUTH_STATUS",
+      "SOURCE_TYPE",
+      "COMPONENT_PRESENT",
+      "EXACT_COMPONENT",
+      "EXACT_VERSION",
+      "EVIDENCE_SHA256",
+      "SYNTHETIC_REVIEWER_ID"
+    ],
+    "advisory_fields": [
+      "SYNTHETIC_OBSERVATION_ID",
+      "SYNTHETIC_ADVISORY_ID",
+      "REVIEW_STATUS",
+      "SOURCE_SET_DIGEST",
+      "TRUTH_CLASSIFICATION",
+      "OBSERVED_CLASSIFICATION",
+      "SYNTHETIC_REVIEWER_ID"
+    ],
+    "real_evidence_allowed": false
+  },
+  "frozen_inputs": {
+    "baseline_commit_sha": "a01d7763e34b8ee231d2d583bee288bac24c0118",
+    "extractor_source_sha256": "4d5b8b10bfb1ab17beb4650d935a55e43cd0f116771190daaef0413930d85637",
+    "advisory_manifest_sha256": "cf62b3e204e0f03fe37ac0766b562e383b91207b48d992c0ee56688036e1ddcb",
+    "synthetic_corpus_schema_sha256": "e3d02f8d211b2b657130f0ae7d83cbef892fcdf21857dd7f9d680b7ba181abec",
+    "extractor_state": "FROZEN_FOR_SYNTHETIC_REHEARSAL",
+    "advisory_state": "FROZEN_FOR_SYNTHETIC_REHEARSAL",
+    "approved_for_real_collection": false
+  },
+  "metrics": {
+    "fingerprint_outcomes": [
+      "TP",
+      "FP",
+      "FN",
+      "CORRECT_ABSTENTION",
+      "INDETERMINATE",
+      "GROUND_TRUTH_CONFLICT"
+    ],
+    "advisory_outcomes": ["CORRECT", "INCORRECT", "UNKNOWN", "NOT_APPLICABLE"],
+    "confidence_tiers": ["HIGH", "MEDIUM", "LOW"],
+    "correctness_metric_exclusions": ["INDETERMINATE", "GROUND_TRUTH_CONFLICT"],
+    "analysis_unit": "OBSERVATION_WITH_SHOP_CLUSTERING",
+    "confidence_is_probability": false,
+    "ecosystem_claims_allowed": false
+  },
+  "lifecycle": {
+    "access_control": "PENDING_OWNER_APPROVAL",
+    "retention_periods": "PENDING_OWNER_APPROVAL",
+    "deletion_process": "PENDING_OWNER_APPROVAL",
+    "backup_propagation": "PENDING_OWNER_APPROVAL",
+    "incident_process": "PENDING_OWNER_APPROVAL",
+    "withdrawal_process": "PENDING_OWNER_APPROVAL",
+    "git_storage_allowed": false,
+    "public_issue_storage_allowed": false
+  }
+}

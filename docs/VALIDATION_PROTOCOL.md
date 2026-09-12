@@ -148,6 +148,8 @@ The synthetic timestamps use the year 2000, every identifier is prefixed with `s
 
 `validation-corpus-v1` is frozen only as synthetic rehearsal schema v1. It is not automatically the schema for a future real-client corpus. Any future consented corpus requires a separately versioned schema and an explicit review gate covering consent, minimization, access control, retention and collection behavior before use.
 
+The preparation templates, frozen rehearsal inputs, metric rules and lifecycle procedures are consolidated in [VALIDATION_GOVERNANCE.md](VALIDATION_GOVERNANCE.md). Its machine-readable rehearsal remains non-operational: owner assignments are synthetic, approval is pending, and real recruitment, evidence, domains, production access and collection authorization are fixed to `false`.
+
 ## 8. Evaluation metrics
 
 ### Fingerprint metrics
@@ -206,7 +208,7 @@ Withdrawal and legal-hold handling must be documented before the pilot starts.
 
 Client-data collection remains blocked until all items are approved:
 
-- [ ] named data controller and research owner;
+- [x] named data controller and research owner, using a public research-owner ID with the personal mapping retained privately;
 - [ ] consent text and authorization record;
 - [x] machine-readable schema with forbidden-field validation, exercised with synthetic fixtures only;
 - [ ] fingerprint ground-truth review form;
@@ -218,6 +220,8 @@ Client-data collection remains blocked until all items are approved:
 - [x] synthetic end-to-end rehearsal using no PII or real domain; the synthetic corpus validation path is tested to perform no network access.
 
 Unchecked gates are intentional owner/research prerequisites, not permission to collect opportunistic samples.
+
+Implementation readiness is separate from owner approval. The repository now contains synthetic templates for consent, fingerprint review, advisory review, sampling/recruitment, technical freeze, metrics, lifecycle and incident handling. Their presence does not check the approval gates above or authorize real-client activity.
 
 ## 12. Publication language
 

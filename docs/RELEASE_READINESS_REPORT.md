@@ -30,7 +30,7 @@ Decision: public repository published; release-readiness gates passed.
 | Companion inventory | PHP syntax checks, HTTPS timestamped HMAC, GET-only response and strict no-secret schema | Pass |
 | Team history | SQLite v2 append-only review journal with actor labels and verifiable global SHA-256 chain | Pass |
 | External safety | No real external shop was scanned during the night plan | Pass |
-| Git operations | Owner-authorized public repository created and `codex/release-ready` pushed to remote `main` | Pass |
+| Git operations | Owner-authorized public repository created and `feature/release-ready` pushed to remote `main` | Pass |
 | Public presentation assets | Official LOGIALOG logos, synthetic dashboard screenshot and self-contained report screenshot | Pass |
 | Private disclosure preparation | Owner-approved GitHub Private Vulnerability Reporting policy and public-issue routing | Pass |
 | Clean-checkout verification | Advisory signature, repository gates, 122 backend tests, PHP lint, deterministic frontend install/build and 3 Chromium tests | Pass |
