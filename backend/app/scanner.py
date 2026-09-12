@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import ipaddress
 import socket
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -13,7 +14,13 @@ from typing import Sequence
 
 from .advisories import correlate
 from .extractors import Extracted, extract_asset_urls, extract_html
-from .extractor_sdk import ExtractorPlugin, run_extractor_plugins
+from .extractor_sdk import (
+    ExtractorPlugin,
+    ExtractorPluginError,
+    UnsupportedExtractorPluginError,
+    run_extractor_plugins,
+    validate_extractor_plugins,
+)
 from .models import AuditRequest, AuditResult, Evidence, Finding, ScanIssue, Status
 from .redaction import redact_url
 from .scoring import calculate_score
@@ -24,6 +31,13 @@ REQUIRED_HEADERS = set(SECURITY_HEADERS[:6])
 
 class AuditPolicyError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class ScanResource:
+    url: str
+    required: bool
+    check_id: str
 
 
 def normalized_origin(url: str) -> tuple[str, str, int]:
@@ -65,21 +79,43 @@ class PassiveScanner:
         start = datetime.now(timezone.utc)
         root = str(request.target).rstrip("/") + "/"
         origin = normalized_origin(root)
-        urls = [root, root.rstrip("/") + "/robots.txt"] + [str(u) for u in request.public_pages]
-        for url in urls:
-            assert_allowed(url, origin)
+        candidates = [
+            ScanResource(root, True, "http:root"),
+            *[ScanResource(str(url), True, "http:public-page") for url in request.public_pages],
+            ScanResource(root.rstrip("/") + "/robots.txt", False, "http:robots"),
+        ]
+        resources: list[ScanResource] = []
+        for candidate in candidates:
+            if not any(resource.url == candidate.url for resource in resources):
+                resources.append(candidate)
+        for resource in resources:
+            assert_allowed(resource.url, origin)
         if self.transport is None:
             await asyncio.to_thread(reject_private_target, origin[1])
         extracted: list[Extracted] = []
         headers_seen: dict[str, str] = {}
         cookies: list[dict[str, str | bool]] = []
         scan_issues: list[ScanIssue] = []
+        active_plugins = self.plugins
+        try:
+            validate_extractor_plugins(active_plugins)
+        except UnsupportedExtractorPluginError as exc:
+            scan_issues.append(
+                ScanIssue(
+                    kind="CHECK_NOT_TESTED",
+                    url=redact_url(root),
+                    required=True,
+                    check_id=f"plugin:{exc.plugin_id}",
+                )
+            )
+            active_plugins = ()
         root_hash = ""
         visited: set[str] = set()
         attempted: list[str] = []
         async with httpx.AsyncClient(transport=self.transport, follow_redirects=False, timeout=12, headers={"User-Agent": "LOGIALOG-Passive-Auditor/1.0"}) as client:
-            while urls and len(attempted) < request.max_requests:
-                url = urls.pop(0)
+            while resources and len(attempted) < request.max_requests:
+                resource = resources.pop(0)
+                url = resource.url
                 if url in visited:
                     continue
                 assert_allowed(url, origin)
@@ -90,19 +126,26 @@ class PassiveScanner:
                 try:
                     response = await client.get(url)
                 except httpx.TransportError:
-                    scan_issues.append(ScanIssue(kind="TRANSPORT_ERROR", url=redact_url(url)))
+                    scan_issues.append(
+                        ScanIssue(kind="TRANSPORT_ERROR", url=redact_url(url), required=resource.required)
+                    )
                     continue
                 visited.add(url)
                 if 300 <= response.status_code < 400 and response.headers.get("location"):
                     destination = str(response.url.join(response.headers["location"]))
                     assert_allowed(destination, origin)
-                    urls.append(destination)
+                    resources.append(ScanResource(destination, resource.required, resource.check_id))
                     continue
                 if response.status_code == 404 and urlsplit(url).path.endswith("/robots.txt"):
                     continue
                 if response.status_code >= 300:
                     scan_issues.append(
-                        ScanIssue(kind="HTTP_STATUS", url=redact_url(url), status_code=response.status_code)
+                        ScanIssue(
+                            kind="HTTP_STATUS",
+                            url=redact_url(url),
+                            required=resource.required,
+                            status_code=response.status_code,
+                        )
                     )
                     continue
                 if url == root:
@@ -111,16 +154,49 @@ class PassiveScanner:
                     cookies = cookie_metadata(response.headers)
                 content_type = response.headers.get("content-type", "")
                 body = response.text[:2_000_000]
-                extracted.extend(extract_html(url, body, content_type))
-                extracted.extend(run_extractor_plugins(url, body, content_type, self.plugins))
+                try:
+                    extracted.extend(extract_html(url, body, content_type))
+                except Exception:
+                    scan_issues.append(
+                        ScanIssue(
+                            kind="EXTRACTOR_ERROR",
+                            url=redact_url(url),
+                            required=resource.required,
+                            check_id="builtin:html-extractor",
+                        )
+                    )
+                    continue
+                try:
+                    extracted.extend(run_extractor_plugins(url, body, content_type, active_plugins))
+                except ExtractorPluginError:
+                    scan_issues.append(
+                        ScanIssue(
+                            kind="EXTRACTOR_ERROR",
+                            url=redact_url(url),
+                            required=resource.required,
+                            check_id="plugin:configured-extractors",
+                        )
+                    )
+                    continue
                 if "html" in content_type:
                     for asset in extract_asset_urls(url, body):
                         try:
                             assert_allowed(asset, origin)
                         except AuditPolicyError:
                             continue
-                        if len(attempted) + len(urls) < request.max_requests:
-                            urls.append(asset)
+                        queued_urls = {queued.url for queued in resources}
+                        if asset not in visited and asset not in queued_urls and len(attempted) + len(resources) < request.max_requests:
+                            resources.append(ScanResource(asset, False, "http:discovered-asset"))
+        pending_required = next((resource for resource in resources if resource.required), None)
+        if pending_required is not None:
+            scan_issues.append(
+                ScanIssue(
+                    kind="BUDGET_EXHAUSTED",
+                    url=redact_url(pending_required.url),
+                    required=True,
+                    check_id=pending_required.check_id,
+                )
+            )
         findings = correlate(extracted)
         for name, value in headers_seen.items():
             if name in REQUIRED_HEADERS and value == "Absent":
@@ -139,7 +215,7 @@ class PassiveScanner:
             findings=findings,
             headers=headers_seen,
             cookies=cookies,
-            scan_completeness="INCOMPLETE" if scan_issues else "COMPLETED",
+            scan_completeness="INCOMPLETE" if any(issue.required for issue in scan_issues) else "COMPLETED",
             scan_issues=scan_issues,
             score=score,
         )

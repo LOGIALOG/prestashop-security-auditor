@@ -6,13 +6,13 @@ Current `format_version`: `1.0`.
 
 Top-level fields are `format`, `format_version`, `demo` and `audit`. The audit payload follows the API model, except that local filesystem paths are excluded. Consumers must reject unsupported major versions and may accept new fields within the same major version.
 
-The audit payload exposes `scan_completeness` as `COMPLETED` or `INCOMPLETE` and records bounded `scan_issues` for HTTP-status or transport failures. Consumers must not convert an incomplete audit into a successful policy decision, even when its findings list is empty.
+The audit payload exposes `scan_completeness` as `COMPLETED` or `INCOMPLETE` and records bounded `scan_issues`. Each issue identifies whether the failed resource or check was required. HTTP failures on discovered optional assets remain visible without making mandatory coverage incomplete; failures on the root, explicitly requested public pages, required extractors or required checks make the audit incomplete. Consumers must not convert an incomplete audit into a successful policy decision, even when its findings list is empty.
 
 Evidence provenance fields (`url`, `captured_at`, `evidence_type`, `excerpt`, `response_sha256`, `confidence` and `detection_method`) will not be removed or change meaning within version 1.
 
 ## SARIF
 
-The SARIF export targets SARIF `2.1.0`. Finding subjects map to rules, findings map to results and captured evidence maps to locations with provenance properties. Demo state is present at run and result level.
+The SARIF export targets SARIF `2.1.0`. Finding subjects map to rules, findings map to results and captured evidence maps to locations with provenance properties. Demo state, scan completeness and structured scan issues are present at run level; demo state is also present at result level.
 
 `ASSET_RESIDUE` and `NOT_AFFECTED` are emitted as notes. Their presence must not be interpreted as a confirmed vulnerability.
 

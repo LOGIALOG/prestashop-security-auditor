@@ -17,9 +17,25 @@ class Status(str, Enum):
 
 
 class ScanIssue(BaseModel):
-    kind: Literal["HTTP_STATUS", "TRANSPORT_ERROR"]
+    kind: Literal[
+        "HTTP_STATUS",
+        "TRANSPORT_ERROR",
+        "EXTRACTOR_ERROR",
+        "BUDGET_EXHAUSTED",
+        "CHECK_NOT_TESTED",
+    ]
     url: str
+    required: bool = True
+    check_id: str | None = None
     status_code: int | None = Field(default=None, ge=300, le=599)
+
+    @model_validator(mode="after")
+    def issue_consistency(self) -> "ScanIssue":
+        if (self.kind == "HTTP_STATUS") != (self.status_code is not None):
+            raise ValueError("HTTP_STATUS exige un code HTTP; les autres incidents l'interdisent")
+        if self.kind == "CHECK_NOT_TESTED" and not self.check_id:
+            raise ValueError("CHECK_NOT_TESTED exige un identifiant de contrôle")
+        return self
 
 
 class Evidence(BaseModel):
@@ -92,10 +108,11 @@ class AuditResult(BaseModel):
             raise ValueError("Les données de démonstration doivent cibler demo.local")
         if any(f.is_demo != self.is_demo for f in self.findings):
             raise ValueError("Le mode des findings doit correspondre au mode de l'audit")
-        if self.scan_completeness == "COMPLETED" and self.scan_issues:
-            raise ValueError("Un audit complet ne peut pas contenir d'incident de scan")
-        if self.scan_completeness == "INCOMPLETE" and not self.scan_issues:
-            raise ValueError("Un audit incomplet doit enregistrer au moins un incident de scan")
+        required_issues = [issue for issue in self.scan_issues if issue.required]
+        if self.scan_completeness == "COMPLETED" and required_issues:
+            raise ValueError("Un audit complet ne peut pas contenir d'incident obligatoire")
+        if self.scan_completeness == "INCOMPLETE" and not required_issues:
+            raise ValueError("Un audit incomplet doit enregistrer au moins un incident obligatoire")
         return self
 
 
