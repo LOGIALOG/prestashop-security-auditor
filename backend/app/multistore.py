@@ -114,6 +114,8 @@ async def run_multistore(
             delay_seconds=manifest.delay_seconds,
         )
         audit = await scanner_factory().run(request)
+        if audit.scan_completeness != "COMPLETED":
+            raise OSError(f"Scan incomplet pour la boutique {shop.shop_id}")
         results.append(ShopAudit(shop_id=shop.shop_id, name=shop.name, audit=audit))
     return MultistoreAudit(
         batch_id=str(uuid4()),

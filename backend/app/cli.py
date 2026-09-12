@@ -223,6 +223,8 @@ async def _scan(args: argparse.Namespace) -> int:
     audit.report_path, audit.report_sha256 = path, digest
     save_audit(audit)
     _emit(_render(audit, args.format), args.output)
+    if audit.scan_completeness != "COMPLETED":
+        return EXIT_RUNTIME_ERROR
     if args.fail_on_confirmed and any(item.status == Status.CONFIRMED for item in audit.findings):
         return EXIT_POLICY_FINDINGS
     return EXIT_OK
@@ -244,6 +246,8 @@ async def _scan_multistore(args: argparse.Namespace, manifest) -> int:
 
 async def _run_monitor(args:argparse.Namespace,config)->int:
     audit=await PassiveScanner().run(config.audit_request())
+    if audit.scan_completeness != "COMPLETED":
+        return EXIT_RUNTIME_ERROR
     comparison=compare_audits(audit,get_previous_real_audit(audit))
     path,digest=save_report(audit)
     audit.report_path,audit.report_sha256=path,digest

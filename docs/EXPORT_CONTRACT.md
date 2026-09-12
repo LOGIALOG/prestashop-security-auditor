@@ -6,6 +6,8 @@ Current `format_version`: `1.0`.
 
 Top-level fields are `format`, `format_version`, `demo` and `audit`. The audit payload follows the API model, except that local filesystem paths are excluded. Consumers must reject unsupported major versions and may accept new fields within the same major version.
 
+The audit payload exposes `scan_completeness` as `COMPLETED` or `INCOMPLETE` and records bounded `scan_issues` for HTTP-status or transport failures. Consumers must not convert an incomplete audit into a successful policy decision, even when its findings list is empty.
+
 Evidence provenance fields (`url`, `captured_at`, `evidence_type`, `excerpt`, `response_sha256`, `confidence` and `detection_method`) will not be removed or change meaning within version 1.
 
 ## SARIF

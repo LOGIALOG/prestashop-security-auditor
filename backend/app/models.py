@@ -16,6 +16,12 @@ class Status(str, Enum):
     HARDENING = "HARDENING"
 
 
+class ScanIssue(BaseModel):
+    kind: Literal["HTTP_STATUS", "TRANSPORT_ERROR"]
+    url: str
+    status_code: int | None = Field(default=None, ge=300, le=599)
+
+
 class Evidence(BaseModel):
     url: str
     captured_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
@@ -74,6 +80,8 @@ class AuditResult(BaseModel):
     findings: list[Finding]
     headers: dict[str, str]
     cookies: list[dict[str, str | bool]]
+    scan_completeness: Literal["COMPLETED", "INCOMPLETE"] = "COMPLETED"
+    scan_issues: list[ScanIssue] = Field(default_factory=list)
     report_path: str | None = None
     report_sha256: str | None = None
     score: "ScoreResult | None" = None
@@ -84,6 +92,10 @@ class AuditResult(BaseModel):
             raise ValueError("Les données de démonstration doivent cibler demo.local")
         if any(f.is_demo != self.is_demo for f in self.findings):
             raise ValueError("Le mode des findings doit correspondre au mode de l'audit")
+        if self.scan_completeness == "COMPLETED" and self.scan_issues:
+            raise ValueError("Un audit complet ne peut pas contenir d'incident de scan")
+        if self.scan_completeness == "INCOMPLETE" and not self.scan_issues:
+            raise ValueError("Un audit incomplet doit enregistrer au moins un incident de scan")
         return self
 
 
