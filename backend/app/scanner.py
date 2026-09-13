@@ -41,6 +41,14 @@ class ScanResource:
     redirect_ancestry: frozenset[str] = frozenset()
 
 
+@dataclass(frozen=True)
+class UrlObservation:
+    terminal_success: bool = False
+    failed_optional: bool = False
+    failed_required: bool = False
+    redirect_destination: str | None = None
+
+
 def normalized_origin(url: str) -> tuple[str, str, int]:
     parts = urlsplit(url)
     port = parts.port or (443 if parts.scheme == "https" else 80)
@@ -111,13 +119,54 @@ class PassiveScanner:
             )
             active_plugins = ()
         root_hash = ""
-        visited: set[str] = set()
+        observations: dict[str, UrlObservation] = {}
         attempted: list[str] = []
+
+        def record_failure(url: str, required: bool) -> None:
+            previous = observations.get(url)
+            observations[url] = UrlObservation(
+                failed_optional=(previous.failed_optional if previous else False) or not required,
+                failed_required=(previous.failed_required if previous else False) or required,
+            )
+
+        def schedule_redirect(resource: ScanResource, source: str, destination: str) -> None:
+            redirect_ancestry = resource.redirect_ancestry | {source}
+            if destination in redirect_ancestry:
+                scan_issues.append(
+                    ScanIssue(
+                        kind="REDIRECT_LOOP",
+                        url=redact_url(destination),
+                        required=resource.required,
+                        check_id=resource.check_id,
+                    )
+                )
+                return
+            resources.append(
+                ScanResource(
+                    destination,
+                    resource.required,
+                    resource.check_id,
+                    redirect_ancestry=redirect_ancestry,
+                )
+            )
+
         async with httpx.AsyncClient(transport=self.transport, follow_redirects=False, timeout=12, headers={"User-Agent": "LOGIALOG-Passive-Auditor/1.0"}) as client:
-            while resources and len(attempted) < request.max_requests:
+            while resources:
                 resource = resources.pop(0)
                 url = resource.url
-                if url in visited:
+                observation = observations.get(url)
+                if observation is not None:
+                    if observation.terminal_success:
+                        continue
+                    if observation.redirect_destination is not None:
+                        schedule_redirect(resource, url, observation.redirect_destination)
+                        continue
+                    if observation.failed_required or (observation.failed_optional and not resource.required):
+                        continue
+                if len(attempted) >= request.max_requests:
+                    if resource.required:
+                        resources.insert(0, resource)
+                        break
                     continue
                 assert_allowed(url, origin)
                 if attempted:
@@ -127,37 +176,22 @@ class PassiveScanner:
                 try:
                     response = await client.get(url)
                 except httpx.TransportError:
+                    record_failure(url, resource.required)
                     scan_issues.append(
                         ScanIssue(kind="TRANSPORT_ERROR", url=redact_url(url), required=resource.required)
                     )
                     continue
-                visited.add(url)
                 if 300 <= response.status_code < 400 and response.headers.get("location"):
                     destination = str(response.url.join(response.headers["location"]))
                     assert_allowed(destination, origin)
-                    redirect_ancestry = resource.redirect_ancestry | {url}
-                    if destination in redirect_ancestry:
-                        scan_issues.append(
-                            ScanIssue(
-                                kind="REDIRECT_LOOP",
-                                url=redact_url(destination),
-                                required=resource.required,
-                                check_id=resource.check_id,
-                            )
-                        )
-                        continue
-                    resources.append(
-                        ScanResource(
-                            destination,
-                            resource.required,
-                            resource.check_id,
-                            redirect_ancestry=redirect_ancestry,
-                        )
-                    )
+                    observations[url] = UrlObservation(redirect_destination=destination)
+                    schedule_redirect(resource, url, destination)
                     continue
-                if response.status_code == 404 and urlsplit(url).path.endswith("/robots.txt"):
+                if response.status_code == 404 and urlsplit(url).path.endswith("/robots.txt") and not resource.required:
+                    record_failure(url, required=False)
                     continue
                 if response.status_code >= 300:
+                    record_failure(url, resource.required)
                     scan_issues.append(
                         ScanIssue(
                             kind="HTTP_STATUS",
@@ -176,6 +210,7 @@ class PassiveScanner:
                 try:
                     extracted.extend(extract_html(url, body, content_type))
                 except Exception:
+                    record_failure(url, resource.required)
                     scan_issues.append(
                         ScanIssue(
                             kind="EXTRACTOR_ERROR",
@@ -188,6 +223,7 @@ class PassiveScanner:
                 try:
                     extracted.extend(run_extractor_plugins(url, body, content_type, active_plugins))
                 except ExtractorPluginError:
+                    record_failure(url, resource.required)
                     scan_issues.append(
                         ScanIssue(
                             kind="EXTRACTOR_ERROR",
@@ -204,8 +240,9 @@ class PassiveScanner:
                         except AuditPolicyError:
                             continue
                         queued_urls = {queued.url for queued in resources}
-                        if asset not in visited and asset not in queued_urls and len(attempted) + len(resources) < request.max_requests:
+                        if asset not in observations and asset not in queued_urls and len(attempted) + len(resources) < request.max_requests:
                             resources.append(ScanResource(asset, False, "http:discovered-asset"))
+                observations[url] = UrlObservation(terminal_success=True)
         pending_required = next((resource for resource in resources if resource.required), None)
         if pending_required is not None:
             scan_issues.append(

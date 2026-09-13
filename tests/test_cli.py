@@ -121,13 +121,18 @@ def test_scan_returns_runtime_exit_code_on_network_failure(monkeypatch, capsys):
         ("required_asset_failure", cli.EXIT_RUNTIME_ERROR),
         ("self_redirect", cli.EXIT_RUNTIME_ERROR),
         ("two_node_redirect_loop", cli.EXIT_RUNTIME_ERROR),
+        ("optional_failure_then_required_failure", cli.EXIT_RUNTIME_ERROR),
+        ("optional_failure_then_required_recovery", cli.EXIT_OK),
     ],
 )
 def test_scan_exit_code_matrix(monkeypatch, capsys, scenario, expected_exit):
+    shared_requests = 0
+
     async def no_sleep(_delay):
         return None
 
     def handler(request: httpx.Request):
+        nonlocal shared_requests
         if scenario == "timeout" and request.url.path == "/":
             raise httpx.ReadTimeout("synthetic timeout", request=request)
         if scenario == "connection_refusal":
@@ -144,6 +149,20 @@ def test_scan_exit_code_matrix(monkeypatch, capsys, scenario, expected_exit):
             return httpx.Response(302, headers={"location": "/loop"})
         if scenario == "two_node_redirect_loop" and request.url.path == "/loop":
             return httpx.Response(302, headers={"location": "/"})
+        if scenario.startswith("optional_failure_then_required"):
+            if request.url.path == "/":
+                return httpx.Response(
+                    200,
+                    text='<script src="/shared.js"></script>',
+                    headers={"content-type": "text/html"},
+                )
+            if request.url.path == "/required":
+                return httpx.Response(302, headers={"location": "/shared.js"})
+            if request.url.path == "/shared.js":
+                shared_requests += 1
+                if scenario == "optional_failure_then_required_recovery" and shared_requests == 2:
+                    return httpx.Response(200)
+                return httpx.Response(503)
         return httpx.Response(200, text="ok", headers={"content-type": "text/html"})
 
     scanner = PassiveScanner(httpx.MockTransport(handler))
@@ -151,9 +170,12 @@ def test_scan_exit_code_matrix(monkeypatch, capsys, scenario, expected_exit):
     monkeypatch.setattr("backend.app.scanner.asyncio.sleep", no_sleep)
     monkeypatch.setattr(cli, "save_report", lambda _audit: ("report.html", "a" * 64))
     monkeypatch.setattr(cli, "save_audit", lambda _audit: None)
-    arguments = ["scan", "https://cli-matrix.test", "--authorized", "--max-requests", "3"]
+    max_requests = "6" if scenario.startswith("optional_failure_then_required") else "3"
+    arguments = ["scan", "https://cli-matrix.test", "--authorized", "--max-requests", max_requests]
     if scenario == "required_asset_failure":
         arguments.extend(["--public-page", "https://cli-matrix.test/required.js"])
+    if scenario.startswith("optional_failure_then_required"):
+        arguments.extend(["--public-page", "https://cli-matrix.test/required"])
 
     actual_exit = cli.main(arguments)
 
