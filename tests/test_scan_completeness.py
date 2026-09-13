@@ -500,6 +500,131 @@ async def test_optional_transport_failure_is_retried_as_required(monkeypatch):
 
 
 @pytest.mark.asyncio
+async def test_optional_http_failure_without_retry_budget_is_required_budget_exhaustion(monkeypatch):
+    shared_requests = 0
+
+    def handler(request):
+        nonlocal shared_requests
+        if request.url.path == "/":
+            return httpx.Response(
+                200,
+                text='<script src="/shared.js"></script>',
+                headers={"content-type": "text/html"},
+            )
+        if request.url.path == "/required":
+            return httpx.Response(302, headers={"location": "/shared.js"})
+        if request.url.path == "/shared.js":
+            shared_requests += 1
+            return httpx.Response(503)
+        return httpx.Response(404)
+
+    result = await run_synthetic(
+        handler,
+        monkeypatch,
+        max_requests=4,
+        public_pages=("https://completeness.test/required",),
+    )
+
+    assert shared_requests == 1
+    assert result.request_count == 4
+    assert any(
+        issue.kind == "HTTP_STATUS"
+        and issue.status_code == 503
+        and not issue.required
+        for issue in result.scan_issues
+    )
+    assert any(
+        issue.kind == "BUDGET_EXHAUSTED"
+        and issue.required
+        and issue.check_id == "http:public-page"
+        and issue.url.endswith("/shared.js")
+        for issue in result.scan_issues
+    )
+    assert_incomplete_unknown(result)
+
+
+@pytest.mark.asyncio
+async def test_repeated_required_failure_is_deduplicated(monkeypatch):
+    shared_requests = 0
+
+    def handler(request):
+        nonlocal shared_requests
+        if request.url.path in {"/one", "/two"}:
+            return httpx.Response(302, headers={"location": "/shared.js"})
+        if request.url.path == "/shared.js":
+            shared_requests += 1
+            return httpx.Response(503)
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404)
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html"})
+
+    result = await run_synthetic(
+        handler,
+        monkeypatch,
+        max_requests=10,
+        public_pages=(
+            "https://completeness.test/one",
+            "https://completeness.test/two",
+        ),
+    )
+
+    required_failures = [
+        issue
+        for issue in result.scan_issues
+        if issue.kind == "HTTP_STATUS" and issue.status_code == 503 and issue.required
+    ]
+    assert shared_requests == 1
+    assert result.request_count == 5
+    assert len(required_failures) == 1
+    assert_incomplete_unknown(result)
+
+
+@pytest.mark.asyncio
+async def test_optional_extractor_failure_can_recover_under_required_context(monkeypatch):
+    shared_requests = 0
+    extractor_attempts = 0
+    original_extract_html = scanner_module.extract_html
+
+    def handler(request):
+        nonlocal shared_requests
+        if request.url.path == "/":
+            return httpx.Response(
+                200,
+                text='<script src="/shared.js"></script>',
+                headers={"content-type": "text/html"},
+            )
+        if request.url.path == "/required":
+            return httpx.Response(302, headers={"location": "/shared.js"})
+        if request.url.path == "/shared.js":
+            shared_requests += 1
+            return httpx.Response(200, text="ok", headers={"content-type": "text/html"})
+        return httpx.Response(404)
+
+    def recovering_extract_html(url, body, content_type):
+        nonlocal extractor_attempts
+        if url.endswith("/shared.js"):
+            extractor_attempts += 1
+            if extractor_attempts == 1:
+                raise RuntimeError("synthetic optional extractor failure")
+        return original_extract_html(url, body, content_type)
+
+    monkeypatch.setattr("backend.app.scanner.extract_html", recovering_extract_html)
+    result = await run_synthetic(
+        handler,
+        monkeypatch,
+        max_requests=6,
+        public_pages=("https://completeness.test/required",),
+    )
+
+    assert shared_requests == 2
+    assert extractor_attempts == 2
+    assert any(issue.kind == "EXTRACTOR_ERROR" and not issue.required for issue in result.scan_issues)
+    assert not any(issue.required for issue in result.scan_issues)
+    assert result.scan_completeness == "COMPLETED"
+    assert evaluate_policy(result, POLICY).decision == "PASS"
+
+
+@pytest.mark.asyncio
 async def test_redirect_chain_respects_budget_and_never_passes(monkeypatch):
     def handler(request):
         destinations = {"/": "/step-one", "/step-one": "/step-two"}

@@ -123,6 +123,7 @@ def test_scan_returns_runtime_exit_code_on_network_failure(monkeypatch, capsys):
         ("two_node_redirect_loop", cli.EXIT_RUNTIME_ERROR),
         ("optional_failure_then_required_failure", cli.EXIT_RUNTIME_ERROR),
         ("optional_failure_then_required_recovery", cli.EXIT_OK),
+        ("optional_failure_then_required_no_budget", cli.EXIT_RUNTIME_ERROR),
     ],
 )
 def test_scan_exit_code_matrix(monkeypatch, capsys, scenario, expected_exit):
@@ -170,7 +171,10 @@ def test_scan_exit_code_matrix(monkeypatch, capsys, scenario, expected_exit):
     monkeypatch.setattr("backend.app.scanner.asyncio.sleep", no_sleep)
     monkeypatch.setattr(cli, "save_report", lambda _audit: ("report.html", "a" * 64))
     monkeypatch.setattr(cli, "save_audit", lambda _audit: None)
-    max_requests = "6" if scenario.startswith("optional_failure_then_required") else "3"
+    if scenario == "optional_failure_then_required_no_budget":
+        max_requests = "4"
+    else:
+        max_requests = "6" if scenario.startswith("optional_failure_then_required") else "3"
     arguments = ["scan", "https://cli-matrix.test", "--authorized", "--max-requests", max_requests]
     if scenario == "required_asset_failure":
         arguments.extend(["--public-page", "https://cli-matrix.test/required.js"])
