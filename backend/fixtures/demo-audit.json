@@ -7,6 +7,8 @@
   "completed_at": "2000-01-01T00:00:00Z",
   "request_count": 3,
   "scope": ["https://demo.local/", "https://demo.local/robots.txt", "https://demo.local/assets/demo.css"],
+  "scan_completeness": "COMPLETED",
+  "scan_issues": [],
   "findings": [
     {
       "is_demo": true,

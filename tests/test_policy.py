@@ -11,7 +11,7 @@ from backend.app.policy import PolicyPack,evaluate_policy,load_policy_pack
 
 def clean_audit()->AuditResult:
     now=datetime.now(timezone.utc)
-    return AuditResult(target="https://shop.test",id="audit-1",domain="shop.test",started_at=now,completed_at=now,request_count=1,scope=["https://shop.test/"],findings=[],headers={},cookies=[],report_sha256="a"*64,score=ScoreResult(value=100,formula="fixture",factors=[]))
+    return AuditResult(target="https://shop.test",id="audit-1",domain="shop.test",started_at=now,completed_at=now,request_count=1,scope=["https://shop.test/"],findings=[],headers={},cookies=[],scan_completeness="COMPLETED",scan_issues=[],report_sha256="a"*64,score=ScoreResult(value=100,formula="fixture",factors=[]))
 
 
 def test_bundled_policy_packs_validate():

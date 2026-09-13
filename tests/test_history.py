@@ -9,7 +9,7 @@ from backend.app.models import AuditResult,ScoreResult
 
 def audit()->AuditResult:
     now=datetime.now(timezone.utc)
-    return AuditResult(target="https://shop.test",id="audit-1",domain="shop.test",started_at=now,completed_at=now,request_count=1,scope=["https://shop.test/"],findings=[],headers={},cookies=[],score=ScoreResult(value=100,formula="fixture",factors=[]))
+    return AuditResult(target="https://shop.test",id="audit-1",domain="shop.test",started_at=now,completed_at=now,request_count=1,scope=["https://shop.test/"],findings=[],headers={},cookies=[],scan_completeness="COMPLETED",scan_issues=[],score=ScoreResult(value=100,formula="fixture",factors=[]))
 
 
 def test_audit_and_review_events_form_a_valid_append_only_chain(monkeypatch,tmp_path):

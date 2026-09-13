@@ -16,7 +16,7 @@ def config(**overrides)->MonitorConfig:
 
 def audit(identifier:str,findings:list[Finding]|None=None,score:int=100)->AuditResult:
     now=datetime.now(timezone.utc)
-    return AuditResult(target="https://shop.test",id=identifier,domain="shop.test",started_at=now,completed_at=now,request_count=1,scope=["https://shop.test/"],findings=findings or [],headers={},cookies=[],report_sha256="a"*64,score=ScoreResult(value=score,formula="fixture",factors=[]))
+    return AuditResult(target="https://shop.test",id=identifier,domain="shop.test",started_at=now,completed_at=now,request_count=1,scope=["https://shop.test/"],findings=findings or [],headers={},cookies=[],scan_completeness="COMPLETED",scan_issues=[],report_sha256="a"*64,score=ScoreResult(value=score,formula="fixture",factors=[]))
 
 
 def finding(subject:str,status:Status)->Finding:

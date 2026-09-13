@@ -97,11 +97,34 @@ class AuditResult(BaseModel):
     findings: list[Finding]
     headers: dict[str, str]
     cookies: list[dict[str, str | bool]]
-    scan_completeness: Literal["COMPLETED", "INCOMPLETE"] = "COMPLETED"
-    scan_issues: list[ScanIssue] = Field(default_factory=list)
+    scan_completeness: Literal["COMPLETED", "INCOMPLETE"]
+    scan_issues: list[ScanIssue]
     report_path: str | None = None
     report_sha256: str | None = None
     score: "ScoreResult | None" = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def legacy_completeness_fails_closed(cls, data: object) -> object:
+        if not isinstance(data, dict):
+            return data
+        has_completeness = "scan_completeness" in data
+        has_issues = "scan_issues" in data
+        if has_completeness != has_issues:
+            raise ValueError("scan_completeness et scan_issues doivent être fournis ensemble")
+        if has_completeness:
+            return data
+        legacy = dict(data)
+        legacy["scan_completeness"] = "INCOMPLETE"
+        legacy["scan_issues"] = [
+            {
+                "kind": "CHECK_NOT_TESTED",
+                "url": str(legacy.get("target", "")),
+                "required": True,
+                "check_id": "coverage:legacy-record",
+            }
+        ]
+        return legacy
 
     @model_validator(mode="after")
     def mode_consistency(self) -> "AuditResult":

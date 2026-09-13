@@ -49,7 +49,7 @@ async def test_multistore_keeps_each_shop_audit_separate_and_export_portable():
             requests.append(request)
             now = datetime.now(timezone.utc)
             target = str(request.target).rstrip("/")
-            return AuditResult(target=target,id=target.rsplit("/",1)[-1],domain=request.target.host,started_at=now,completed_at=now,request_count=1,scope=[target],findings=[],headers={},cookies=[],report_path="C:/private/report.html")
+            return AuditResult(target=target,id=target.rsplit("/",1)[-1],domain=request.target.host,started_at=now,completed_at=now,request_count=1,scope=[target],findings=[],headers={},cookies=[],scan_completeness="COMPLETED",scan_issues=[],report_path="C:/private/report.html")
 
     result = await run_multistore(manifest(), FakeScanner)
     exported = result.portable_export()
