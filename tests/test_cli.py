@@ -2,10 +2,12 @@ import json
 from pathlib import Path
 
 import httpx
+import pytest
 
 from backend.app import cli
 from backend.app.advisories import build_advisory_manifest
 from backend.app.models import AuditResult, Status
+from backend.app.scanner import PassiveScanner
 
 
 def demo_audit() -> AuditResult:
@@ -106,6 +108,50 @@ def test_scan_returns_runtime_exit_code_on_network_failure(monkeypatch, capsys):
 
     assert cli.main(["scan", "https://shop.test", "--authorized", "--max-requests", "1"]) == cli.EXIT_RUNTIME_ERROR
     assert "offline" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize(
+    ("scenario", "expected_exit"),
+    [
+        ("complete_success", cli.EXIT_OK),
+        ("root_404", cli.EXIT_RUNTIME_ERROR),
+        ("root_500", cli.EXIT_RUNTIME_ERROR),
+        ("timeout", cli.EXIT_RUNTIME_ERROR),
+        ("connection_refusal", cli.EXIT_RUNTIME_ERROR),
+        ("required_asset_failure", cli.EXIT_RUNTIME_ERROR),
+    ],
+)
+def test_scan_exit_code_matrix(monkeypatch, capsys, scenario, expected_exit):
+    async def no_sleep(_delay):
+        return None
+
+    def handler(request: httpx.Request):
+        if scenario == "timeout" and request.url.path == "/":
+            raise httpx.ReadTimeout("synthetic timeout", request=request)
+        if scenario == "connection_refusal":
+            raise httpx.ConnectError("synthetic connection refusal", request=request)
+        if scenario == "root_404" and request.url.path == "/":
+            return httpx.Response(404)
+        if scenario == "root_500" and request.url.path == "/":
+            return httpx.Response(500)
+        if scenario == "required_asset_failure" and request.url.path == "/required.js":
+            return httpx.Response(503)
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html"})
+
+    scanner = PassiveScanner(httpx.MockTransport(handler))
+    monkeypatch.setattr(cli, "PassiveScanner", lambda: scanner)
+    monkeypatch.setattr("backend.app.scanner.asyncio.sleep", no_sleep)
+    monkeypatch.setattr(cli, "save_report", lambda _audit: ("report.html", "a" * 64))
+    monkeypatch.setattr(cli, "save_audit", lambda _audit: None)
+    arguments = ["scan", "https://cli-matrix.test", "--authorized", "--max-requests", "3"]
+    if scenario == "required_asset_failure":
+        arguments.extend(["--public-page", "https://cli-matrix.test/required.js"])
+
+    actual_exit = cli.main(arguments)
+
+    assert actual_exit == expected_exit
+    assert scanner.methods and set(scanner.methods) == {"GET"}
+    capsys.readouterr()
 
 
 def test_monitor_run_creates_quiet_baseline(monkeypatch, tmp_path):

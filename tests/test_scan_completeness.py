@@ -224,3 +224,46 @@ async def test_original_case_j_unsupported_plugin_is_not_tested_and_never_passes
 
     assert_incomplete_unknown(result)
     assert any(issue.kind == "CHECK_NOT_TESTED" and issue.required for issue in result.scan_issues)
+
+
+@pytest.mark.asyncio
+async def test_redirect_to_503_retains_structured_failure_and_never_passes(monkeypatch):
+    def handler(request):
+        if request.url.path == "/":
+            return httpx.Response(302, headers={"location": "/maintenance"})
+        if request.url.path == "/maintenance":
+            return httpx.Response(503)
+        return httpx.Response(200)
+
+    result = await run_synthetic(handler, monkeypatch, max_requests=3)
+
+    assert_incomplete_unknown(result)
+    assert any(issue.kind == "HTTP_STATUS" and issue.status_code == 503 for issue in result.scan_issues)
+    assert any(url.endswith("/maintenance") for url in result.scope)
+
+
+@pytest.mark.asyncio
+async def test_redirect_without_location_is_structured_and_never_passes(monkeypatch):
+    result = await run_synthetic(
+        lambda request: httpx.Response(302 if request.url.path == "/" else 200),
+        monkeypatch,
+        max_requests=2,
+    )
+
+    assert_incomplete_unknown(result)
+    assert any(issue.kind == "HTTP_STATUS" and issue.status_code == 302 for issue in result.scan_issues)
+
+
+@pytest.mark.asyncio
+async def test_redirect_chain_respects_budget_and_never_passes(monkeypatch):
+    def handler(request):
+        destinations = {"/": "/step-one", "/step-one": "/step-two"}
+        if request.url.path in destinations:
+            return httpx.Response(302, headers={"location": destinations[request.url.path]})
+        return httpx.Response(200)
+
+    result = await run_synthetic(handler, monkeypatch, max_requests=2)
+
+    assert result.request_count == 2
+    assert_incomplete_unknown(result)
+    assert any(issue.kind == "BUDGET_EXHAUSTED" and issue.required for issue in result.scan_issues)
