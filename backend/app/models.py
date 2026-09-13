@@ -23,6 +23,7 @@ class ScanIssue(BaseModel):
         "EXTRACTOR_ERROR",
         "BUDGET_EXHAUSTED",
         "CHECK_NOT_TESTED",
+        "REDIRECT_LOOP",
     ]
     url: str
     required: bool = True

@@ -3,7 +3,7 @@ export interface Evidence{url:string;captured_at:string;evidence_type:string;exc
 export interface Finding{is_demo:boolean;subject:string;status:Status;severity:string;version?:string;cve?:string;interpretation:string;business_risk:string;remediation:string;source?:string;access_required?:string;evidence:Evidence[]}
 export interface ScoreFactor{subject:string;status:Status;points:number;reason:string}
 export interface ScoreResult{value:number;formula:string;factors:ScoreFactor[];previous_comparison:null|number}
-export interface ScanIssue{kind:'HTTP_STATUS'|'TRANSPORT_ERROR'|'EXTRACTOR_ERROR'|'BUDGET_EXHAUSTED'|'CHECK_NOT_TESTED';url:string;required:boolean;check_id?:string|null;status_code?:number|null}
+export interface ScanIssue{kind:'HTTP_STATUS'|'TRANSPORT_ERROR'|'EXTRACTOR_ERROR'|'BUDGET_EXHAUSTED'|'CHECK_NOT_TESTED'|'REDIRECT_LOOP';url:string;required:boolean;check_id?:string|null;status_code?:number|null}
 export interface AuditResult{is_demo:boolean;target:string;id:string;domain:string;started_at:string;completed_at:string;request_count:number;scope:string[];findings:Finding[];headers:Record<string,string>;cookies:Array<Record<string,string|boolean>>;scan_completeness:'COMPLETED'|'INCOMPLETE';scan_issues:ScanIssue[];report_sha256?:string;score?:ScoreResult}
 export interface FindingChange{subject:string;cve?:string;previous_status?:Status;current_status?:Status;previous_version?:string;current_version?:string}
 export interface AuditComparison{audit_id:string;previous_audit_id?:string;domain:string;available:boolean;score_delta?:number;added:FindingChange[];resolved:FindingChange[];changed:FindingChange[];unchanged_count:number}

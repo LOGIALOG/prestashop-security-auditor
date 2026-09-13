@@ -119,6 +119,8 @@ def test_scan_returns_runtime_exit_code_on_network_failure(monkeypatch, capsys):
         ("timeout", cli.EXIT_RUNTIME_ERROR),
         ("connection_refusal", cli.EXIT_RUNTIME_ERROR),
         ("required_asset_failure", cli.EXIT_RUNTIME_ERROR),
+        ("self_redirect", cli.EXIT_RUNTIME_ERROR),
+        ("two_node_redirect_loop", cli.EXIT_RUNTIME_ERROR),
     ],
 )
 def test_scan_exit_code_matrix(monkeypatch, capsys, scenario, expected_exit):
@@ -136,6 +138,12 @@ def test_scan_exit_code_matrix(monkeypatch, capsys, scenario, expected_exit):
             return httpx.Response(500)
         if scenario == "required_asset_failure" and request.url.path == "/required.js":
             return httpx.Response(503)
+        if scenario == "self_redirect" and request.url.path == "/":
+            return httpx.Response(302, headers={"location": "/"})
+        if scenario == "two_node_redirect_loop" and request.url.path == "/":
+            return httpx.Response(302, headers={"location": "/loop"})
+        if scenario == "two_node_redirect_loop" and request.url.path == "/loop":
+            return httpx.Response(302, headers={"location": "/"})
         return httpx.Response(200, text="ok", headers={"content-type": "text/html"})
 
     scanner = PassiveScanner(httpx.MockTransport(handler))

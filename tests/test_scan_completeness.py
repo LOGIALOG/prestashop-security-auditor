@@ -255,6 +255,81 @@ async def test_redirect_without_location_is_structured_and_never_passes(monkeypa
 
 
 @pytest.mark.asyncio
+async def test_required_self_redirect_is_incomplete_and_never_passes(monkeypatch):
+    result = await run_synthetic(
+        lambda request: httpx.Response(
+            302,
+            headers={"location": "/"},
+        )
+        if request.url.path == "/"
+        else httpx.Response(404),
+        monkeypatch,
+        max_requests=3,
+    )
+
+    assert_incomplete_unknown(result)
+    assert any(issue.kind == "REDIRECT_LOOP" and issue.required for issue in result.scan_issues)
+
+
+@pytest.mark.asyncio
+async def test_required_two_node_redirect_loop_is_incomplete_and_never_passes(monkeypatch):
+    def handler(request):
+        destinations = {"/": "/loop", "/loop": "/"}
+        if request.url.path in destinations:
+            return httpx.Response(302, headers={"location": destinations[request.url.path]})
+        return httpx.Response(404)
+
+    result = await run_synthetic(handler, monkeypatch, max_requests=4)
+
+    assert_incomplete_unknown(result)
+    assert any(issue.kind == "REDIRECT_LOOP" and issue.required for issue in result.scan_issues)
+
+
+@pytest.mark.asyncio
+async def test_optional_redirect_loop_is_retained_without_overhardening(monkeypatch):
+    def handler(request):
+        if request.url.path == "/":
+            return httpx.Response(
+                200,
+                text='<script src="/optional-loop.js"></script>',
+                headers={"content-type": "text/html"},
+            )
+        if request.url.path == "/optional-loop.js":
+            return httpx.Response(302, headers={"location": "/optional-loop.js"})
+        return httpx.Response(404)
+
+    result = await run_synthetic(handler, monkeypatch, max_requests=4)
+
+    assert result.scan_completeness == "COMPLETED"
+    assert any(issue.kind == "REDIRECT_LOOP" and not issue.required for issue in result.scan_issues)
+    assert evaluate_policy(result, POLICY).decision == "PASS"
+
+
+@pytest.mark.asyncio
+async def test_converging_redirects_do_not_create_redirect_loop(monkeypatch):
+    def handler(request):
+        if request.url.path in {"/left", "/right"}:
+            return httpx.Response(302, headers={"location": "/shared"})
+        if request.url.path == "/robots.txt":
+            return httpx.Response(404)
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html"})
+
+    result = await run_synthetic(
+        handler,
+        monkeypatch,
+        max_requests=6,
+        public_pages=(
+            "https://completeness.test/left",
+            "https://completeness.test/right",
+        ),
+    )
+
+    assert result.scan_completeness == "COMPLETED"
+    assert not any(issue.kind == "REDIRECT_LOOP" for issue in result.scan_issues)
+    assert evaluate_policy(result, POLICY).decision == "PASS"
+
+
+@pytest.mark.asyncio
 async def test_redirect_chain_respects_budget_and_never_passes(monkeypatch):
     def handler(request):
         destinations = {"/": "/step-one", "/step-one": "/step-two"}

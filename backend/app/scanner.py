@@ -38,6 +38,7 @@ class ScanResource:
     url: str
     required: bool
     check_id: str
+    redirect_ancestry: frozenset[str] = frozenset()
 
 
 def normalized_origin(url: str) -> tuple[str, str, int]:
@@ -134,7 +135,25 @@ class PassiveScanner:
                 if 300 <= response.status_code < 400 and response.headers.get("location"):
                     destination = str(response.url.join(response.headers["location"]))
                     assert_allowed(destination, origin)
-                    resources.append(ScanResource(destination, resource.required, resource.check_id))
+                    redirect_ancestry = resource.redirect_ancestry | {url}
+                    if destination in redirect_ancestry:
+                        scan_issues.append(
+                            ScanIssue(
+                                kind="REDIRECT_LOOP",
+                                url=redact_url(destination),
+                                required=resource.required,
+                                check_id=resource.check_id,
+                            )
+                        )
+                        continue
+                    resources.append(
+                        ScanResource(
+                            destination,
+                            resource.required,
+                            resource.check_id,
+                            redirect_ancestry=redirect_ancestry,
+                        )
+                    )
                     continue
                 if response.status_code == 404 and urlsplit(url).path.endswith("/robots.txt"):
                     continue
