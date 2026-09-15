@@ -8,11 +8,12 @@ Copy [monitor.example.json](monitor.example.json) to the Git-ignored `monitor.lo
 
 - Explicit authorization is mandatory in every configuration.
 - The remote scanner keeps the same same-origin, public-target, GET-only, 20-request and minimum-delay boundaries.
-- Each run creates a normal auditable report and compares it with the latest real audit of the same domain.
+- Each run creates an auditable report. Completed runs compare against the latest previous completed real audit of the same domain; incomplete and legacy records remain stored as evidence but are never comparison baselines.
 - The first run creates a quiet `BASELINE`.
 - An unchanged run produces `UNCHANGED`, writes its machine-readable result and exits `0` without console output.
 - A configured meaningful change produces `CHANGED`, writes reasons and exits `11` so the local scheduler can notify the operator.
 - Scan, policy or network errors retain their normal error exit codes and are never reported as an unchanged success.
+- An incomplete scan emits monitor-result schema `1.1` with state `INCOMPLETE`, `comparison: null`, and its structured `scan_issues`, then exits `5`. Normal `BASELINE`, `UNCHANGED`, and `CHANGED` results also use schema `1.1`; monitor configuration remains schema `1.0`.
 
 Meaningful changes can include new findings with selected statuses, resolved findings, status/version changes and a score decrease above the configured threshold. Hardening-only noise can be excluded by leaving `HARDENING` out of `notify_on_added_statuses`.
 

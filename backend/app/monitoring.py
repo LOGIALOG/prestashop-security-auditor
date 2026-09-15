@@ -5,7 +5,7 @@ from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
-from .models import AuditComparison, AuditRequest, AuditResult, Status
+from .models import AuditComparison, AuditRequest, AuditResult, ScanIssue, Status
 
 
 class MonitorConfig(BaseModel):
@@ -50,13 +50,25 @@ class MonitorConfig(BaseModel):
 
 
 class MonitorResult(BaseModel):
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["1.1"] = "1.1"
     monitor_id: str
     audit_id: str
-    state: Literal["BASELINE","UNCHANGED","CHANGED"]
+    state: Literal["BASELINE","UNCHANGED","CHANGED","INCOMPLETE"]
     notification_required: bool
     reasons: list[str]
-    comparison: AuditComparison
+    comparison: AuditComparison | None
+    scan_completeness: Literal["COMPLETED","INCOMPLETE"]
+    scan_issues: list[ScanIssue]
+
+    @model_validator(mode="after")
+    def state_matches_scan_completeness(self)->"MonitorResult":
+        required_issues=any(issue.required for issue in self.scan_issues)
+        if self.state=="INCOMPLETE":
+            if self.scan_completeness!="INCOMPLETE" or self.comparison is not None or self.notification_required or not required_issues:
+                raise ValueError("Un résultat de monitoring incomplet exige une couverture incomplète sans comparaison ni notification")
+        elif self.scan_completeness!="COMPLETED" or self.comparison is None or required_issues:
+            raise ValueError("Un résultat de monitoring normal exige un audit complet et une comparaison")
+        return self
 
 
 def load_monitor_config(path:Path)->MonitorConfig:
@@ -67,7 +79,7 @@ def load_monitor_config(path:Path)->MonitorConfig:
 
 def evaluate_monitor(config:MonitorConfig,audit:AuditResult,comparison:AuditComparison)->MonitorResult:
     if not comparison.available:
-        return MonitorResult(monitor_id=config.monitor_id,audit_id=audit.id,state="BASELINE",notification_required=False,reasons=[],comparison=comparison)
+        return MonitorResult(monitor_id=config.monitor_id,audit_id=audit.id,state="BASELINE",notification_required=False,reasons=[],comparison=comparison,scan_completeness=audit.scan_completeness,scan_issues=audit.scan_issues)
     reasons:list[str]=[]
     watched=set(config.notify_on_added_statuses)
     added=[item.subject for item in comparison.added if item.current_status in watched]
@@ -79,4 +91,10 @@ def evaluate_monitor(config:MonitorConfig,audit:AuditResult,comparison:AuditComp
         reasons.append(f"Statuts ou versions modifiés: {', '.join(sorted(item.subject for item in comparison.changed))}")
     if comparison.score_delta is not None and comparison.score_delta<=-config.minimum_score_drop:
         reasons.append(f"Baisse du score: {comparison.score_delta}")
-    return MonitorResult(monitor_id=config.monitor_id,audit_id=audit.id,state="CHANGED" if reasons else "UNCHANGED",notification_required=bool(reasons),reasons=reasons,comparison=comparison)
+    return MonitorResult(monitor_id=config.monitor_id,audit_id=audit.id,state="CHANGED" if reasons else "UNCHANGED",notification_required=bool(reasons),reasons=reasons,comparison=comparison,scan_completeness=audit.scan_completeness,scan_issues=audit.scan_issues)
+
+
+def incomplete_monitor_result(config:MonitorConfig,audit:AuditResult)->MonitorResult:
+    if audit.scan_completeness!="INCOMPLETE":
+        raise ValueError("Seul un audit incomplet peut produire un résultat de monitoring incomplet")
+    return MonitorResult(monitor_id=config.monitor_id,audit_id=audit.id,state="INCOMPLETE",notification_required=False,reasons=[],comparison=None,scan_completeness=audit.scan_completeness,scan_issues=audit.scan_issues)

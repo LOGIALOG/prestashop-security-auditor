@@ -99,8 +99,7 @@ def test_get_previous_real_audit_fails_closed_for_historical_payload(monkeypatch
 
     previous = database.get_previous_real_audit(current)
 
-    assert previous is not None
-    assert_legacy_coverage_issue(previous)
+    assert previous is None
 
 
 def test_partial_schema_with_only_completeness_is_rejected():

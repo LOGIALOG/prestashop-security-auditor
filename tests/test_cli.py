@@ -4,15 +4,27 @@ from pathlib import Path
 import httpx
 import pytest
 
-from backend.app import cli
+from backend.app import cli, database
 from backend.app.advisories import build_advisory_manifest
 from backend.app.models import AuditResult, Status
+from backend.app.report import save_report as write_report
 from backend.app.scanner import PassiveScanner
 
 
 def demo_audit() -> AuditResult:
     fixture = Path(__file__).parents[1] / "backend" / "fixtures" / "demo-audit.json"
     return AuditResult.model_validate(json.loads(fixture.read_text(encoding="utf-8")))
+
+
+def real_monitor_audit(identifier: str) -> AuditResult:
+    result = demo_audit().model_copy(deep=True)
+    result.id = identifier
+    result.is_demo = False
+    result.target = "https://shop.test"
+    result.domain = "shop.test"
+    for item in result.findings:
+        item.is_demo = False
+    return result
 
 
 def test_advisory_validation_command(capsys):
@@ -189,12 +201,7 @@ def test_scan_exit_code_matrix(monkeypatch, capsys, scenario, expected_exit):
 
 
 def test_monitor_run_creates_quiet_baseline(monkeypatch, tmp_path):
-    result = demo_audit().model_copy(deep=True)
-    result.is_demo = False
-    result.target = "https://shop.test"
-    result.domain = "shop.test"
-    for item in result.findings:
-        item.is_demo = False
+    result = real_monitor_audit("baseline")
 
     class FakeScanner:
         async def run(self, _request):
@@ -224,8 +231,123 @@ def test_monitor_run_creates_quiet_baseline(monkeypatch, tmp_path):
 
     assert code == cli.EXIT_OK
     payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "1.1"
     assert payload["state"] == "BASELINE"
     assert payload["notification_required"] is False
+    assert payload["scan_completeness"] == "COMPLETED"
+    assert payload["scan_issues"] == []
+    assert payload["comparison"] is not None
+
+
+def test_monitor_incomplete_scan_persists_report_and_structured_evidence(monkeypatch, tmp_path):
+    config = tmp_path / "monitor.json"
+    output = tmp_path / "monitor-result.json"
+    report = tmp_path / "monitor-report.html"
+    config.write_text(
+        json.dumps(
+            {
+                "schema_version": "1.0",
+                "monitor_id": "shop.production",
+                "target": "https://monitor-incomplete.test",
+                "authorization_confirmed": True,
+                "max_requests": 1,
+                "delay_seconds": 1,
+            }
+        ),
+        encoding="utf-8",
+    )
+
+    def handler(request: httpx.Request):
+        return httpx.Response(503, request=request)
+
+    def forbidden(*_args, **_kwargs):
+        raise AssertionError("Incomplete monitor scans must not be compared or evaluated")
+
+    scanner = PassiveScanner(httpx.MockTransport(handler))
+    monkeypatch.setattr(cli, "PassiveScanner", lambda: scanner)
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "audits.sqlite3")
+    monkeypatch.setattr(cli, "save_report", lambda audit: write_report(audit, destination=report))
+    monkeypatch.setattr(cli, "get_previous_real_audit", forbidden)
+    monkeypatch.setattr(cli, "compare_audits", forbidden)
+    monkeypatch.setattr(cli, "evaluate_monitor", forbidden)
+
+    code = cli.main(["monitor", "run", "--config", str(config), "--output", str(output)])
+
+    assert code == cli.EXIT_RUNTIME_ERROR
+    assert report.is_file()
+    assert output.is_file()
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert payload["schema_version"] == "1.1"
+    assert payload["state"] == "INCOMPLETE"
+    assert payload["notification_required"] is False
+    assert payload["comparison"] is None
+    assert payload["scan_completeness"] == "INCOMPLETE"
+    assert payload["scan_issues"] == [
+        {
+            "kind": "HTTP_STATUS",
+            "url": "https://monitor-incomplete.test/",
+            "required": True,
+            "check_id": None,
+            "status_code": 503,
+        }
+    ]
+    persisted = database.get_audit(payload["audit_id"])
+    assert persisted is not None
+    assert persisted.id == payload["audit_id"]
+    assert persisted.scan_completeness == "INCOMPLETE"
+    assert persisted.scan_issues[0].status_code == 503
+    assert persisted.report_path == str(report)
+    assert persisted.report_sha256 is not None and len(persisted.report_sha256) == 64
+
+
+def test_monitor_completed_unchanged_run_remains_successful(monkeypatch, tmp_path):
+    current = real_monitor_audit("current-unchanged")
+    previous = current.model_copy(deep=True, update={"id": "previous-unchanged"})
+    config = tmp_path / "monitor.json"
+    output = tmp_path / "monitor-result.json"
+    config.write_text(json.dumps({"schema_version":"1.0","monitor_id":"shop.production","target":"https://shop.test","authorization_confirmed":True,"max_requests":1,"delay_seconds":1}),encoding="utf-8")
+
+    class FakeScanner:
+        async def run(self, _request):
+            return current
+
+    monkeypatch.setattr(cli, "PassiveScanner", FakeScanner)
+    monkeypatch.setattr(cli, "get_previous_real_audit", lambda _audit: previous)
+    monkeypatch.setattr(cli, "save_report", lambda _audit: ("report.html", "a" * 64))
+    monkeypatch.setattr(cli, "save_audit", lambda _audit: None)
+
+    code = cli.main(["monitor", "run", "--config", str(config), "--output", str(output)])
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert code == cli.EXIT_OK
+    assert payload["state"] == "UNCHANGED"
+    assert payload["notification_required"] is False
+    assert payload["scan_completeness"] == "COMPLETED"
+
+
+def test_monitor_completed_meaningful_change_keeps_notification_exit(monkeypatch, tmp_path):
+    current = real_monitor_audit("current-changed")
+    previous = current.model_copy(deep=True, update={"id": "previous-changed", "findings": []})
+    config = tmp_path / "monitor.json"
+    output = tmp_path / "monitor-result.json"
+    config.write_text(json.dumps({"schema_version":"1.0","monitor_id":"shop.production","target":"https://shop.test","authorization_confirmed":True,"max_requests":1,"delay_seconds":1}),encoding="utf-8")
+
+    class FakeScanner:
+        async def run(self, _request):
+            return current
+
+    monkeypatch.setattr(cli, "PassiveScanner", FakeScanner)
+    monkeypatch.setattr(cli, "get_previous_real_audit", lambda _audit: previous)
+    monkeypatch.setattr(cli, "save_report", lambda _audit: ("report.html", "a" * 64))
+    monkeypatch.setattr(cli, "save_audit", lambda _audit: None)
+
+    code = cli.main(["monitor", "run", "--config", str(config), "--output", str(output)])
+
+    payload = json.loads(output.read_text(encoding="utf-8"))
+    assert code == cli.EXIT_MEANINGFUL_CHANGE
+    assert payload["state"] == "CHANGED"
+    assert payload["notification_required"] is True
+    assert payload["scan_completeness"] == "COMPLETED"
 
 
 def test_manifest_command_detects_advisory_tampering(tmp_path, capsys):
