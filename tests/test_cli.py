@@ -9,7 +9,8 @@ import pytest
 from backend.app import cli, database
 from backend.app.advisories import build_advisory_manifest
 from backend.app.models import AuditResult, ScanIssue, Status
-from backend.app.multistore import MultistoreAudit, ShopAudit
+from backend.app.multistore import MultistoreAudit, MultistoreManifest, ShopAudit
+from backend.app.multistore import run_multistore as real_run_multistore
 from backend.app.report import save_report as write_report
 from backend.app.scanner import PassiveScanner
 
@@ -291,6 +292,188 @@ def test_multistore_cli_scanner_exception_returns_runtime_error_without_output(m
 
     assert code==cli.EXIT_RUNTIME_ERROR
     assert "synthetic scanner failure" in capsys.readouterr().err
+    assert not output.exists()
+
+
+def flaky_multistore_manifest(*shop_ids: str) -> MultistoreManifest:
+    return MultistoreManifest.model_validate({
+        "schema_version":"1.0",
+        "authorization_confirmed":True,
+        "delay_seconds":1,
+        "shops":[
+            {"shop_id":shop_id,"name":f"Synthetic {shop_id}","target":f"https://{shop_id}.example","max_requests":2}
+            for shop_id in shop_ids
+        ],
+    })
+
+
+@pytest.mark.asyncio
+async def test_multistore_cli_scanner_failure_preserves_completed_before_runtime_exit(monkeypatch,tmp_path,capsys):
+    manifest=flaky_multistore_manifest("a","b","c")
+    requests=[]
+    produced=[]
+    reports=[]
+    audits=[]
+    output=tmp_path/"later-scanner-failure.json"
+
+    class FlakyScanner:
+        async def run(self, request):
+            requests.append(request.target.host)
+            if request.target.host == "b.example":
+                raise OSError("synthetic scanner failure on B")
+            audit=multistore_cli_audit(request.target.host)
+            produced.append(audit)
+            return audit
+
+    async def run(manifest_arg):
+        return await real_run_multistore(manifest_arg,FlakyScanner)
+
+    monkeypatch.setattr(cli,"run_multistore",run)
+    monkeypatch.setattr(cli,"save_report",lambda audit: reports.append(audit.id) or (f"{audit.id}.html","a"*64))
+    monkeypatch.setattr(cli,"save_audit",lambda audit: audits.append(audit.id))
+
+    code=await cli._scan_multistore(SimpleNamespace(output=output,fail_on_confirmed=False),manifest)
+
+    assert code==cli.EXIT_RUNTIME_ERROR
+    assert requests==["a.example","b.example"]
+    assert reports==[produced[0].id]
+    assert audits==[produced[0].id]
+    assert "synthetic scanner failure on B" in capsys.readouterr().err
+    assert not output.exists()
+
+
+@pytest.mark.asyncio
+async def test_multistore_cli_first_shop_scanner_failure_saves_nothing(monkeypatch,tmp_path,capsys):
+    manifest=flaky_multistore_manifest("a","b")
+    requests=[]
+    reports=[]
+    audits=[]
+    output=tmp_path/"first-scanner-failure.json"
+
+    class FailingScanner:
+        async def run(self, request):
+            requests.append(request.target.host)
+            raise OSError("synthetic scanner failure")
+
+    async def run(manifest_arg):
+        return await real_run_multistore(manifest_arg,FailingScanner)
+
+    monkeypatch.setattr(cli,"run_multistore",run)
+    monkeypatch.setattr(cli,"save_report",lambda audit: reports.append(audit.id) or (f"{audit.id}.html","a"*64))
+    monkeypatch.setattr(cli,"save_audit",lambda audit: audits.append(audit.id))
+
+    code=await cli._scan_multistore(SimpleNamespace(output=output,fail_on_confirmed=False),manifest)
+
+    assert code==cli.EXIT_RUNTIME_ERROR
+    assert requests==["a.example"]
+    assert reports==[]
+    assert audits==[]
+    assert "synthetic scanner failure" in capsys.readouterr().err
+    assert not output.exists()
+
+
+@pytest.mark.asyncio
+async def test_multistore_cli_multiple_completed_preserved_before_scanner_failure(monkeypatch,tmp_path,capsys):
+    manifest=flaky_multistore_manifest("a","b","c","d")
+    requests=[]
+    produced=[]
+    reports=[]
+    audits=[]
+    output=tmp_path/"multi-scanner-failure.json"
+
+    class FlakyScanner:
+        async def run(self, request):
+            requests.append(request.target.host)
+            if request.target.host == "c.example":
+                raise OSError("synthetic scanner failure on C")
+            audit=multistore_cli_audit(request.target.host)
+            produced.append(audit)
+            return audit
+
+    async def run(manifest_arg):
+        return await real_run_multistore(manifest_arg,FlakyScanner)
+
+    monkeypatch.setattr(cli,"run_multistore",run)
+    monkeypatch.setattr(cli,"save_report",lambda audit: reports.append(audit.id) or (f"{audit.id}.html","a"*64))
+    monkeypatch.setattr(cli,"save_audit",lambda audit: audits.append(audit.id))
+
+    code=await cli._scan_multistore(SimpleNamespace(output=output,fail_on_confirmed=False),manifest)
+    capsys.readouterr()
+
+    assert code==cli.EXIT_RUNTIME_ERROR
+    assert requests==["a.example","b.example","c.example"]
+    assert reports==[audit.id for audit in produced]
+    assert audits==[audit.id for audit in produced]
+    assert len(reports)==2
+    assert not output.exists()
+
+
+@pytest.mark.asyncio
+async def test_multistore_cli_scanner_failure_over_confirmed_returns_runtime_error(monkeypatch,tmp_path,capsys):
+    manifest=flaky_multistore_manifest("a","b")
+    requests=[]
+    produced=[]
+    reports=[]
+    audits=[]
+    output=tmp_path/"confirmed-scanner-failure.json"
+
+    class FlakyScanner:
+        async def run(self, request):
+            requests.append(request.target.host)
+            if request.target.host == "b.example":
+                raise OSError("synthetic scanner failure on B")
+            audit=multistore_cli_audit(request.target.host,confirmed=True)
+            produced.append(audit)
+            return audit
+
+    async def run(manifest_arg):
+        return await real_run_multistore(manifest_arg,FlakyScanner)
+
+    monkeypatch.setattr(cli,"run_multistore",run)
+    monkeypatch.setattr(cli,"save_report",lambda audit: reports.append(audit.id) or (f"{audit.id}.html","a"*64))
+    monkeypatch.setattr(cli,"save_audit",lambda audit: audits.append(audit.id))
+
+    code=await cli._scan_multistore(SimpleNamespace(output=output,fail_on_confirmed=True),manifest)
+    capsys.readouterr()
+
+    assert code==cli.EXIT_RUNTIME_ERROR
+    assert code!=cli.EXIT_POLICY_FINDINGS
+    assert requests==["a.example","b.example"]
+    assert reports==[produced[0].id]
+    assert audits==[produced[0].id]
+    assert not output.exists()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure",["report","audit"])
+async def test_multistore_cli_partial_persistence_failure_cannot_return_success(monkeypatch,tmp_path,failure):
+    manifest=flaky_multistore_manifest("a","b")
+    output=tmp_path/f"partial-{failure}-failure.json"
+
+    class FlakyScanner:
+        async def run(self, request):
+            if request.target.host == "b.example":
+                raise OSError("synthetic scanner failure on B")
+            return multistore_cli_audit(request.target.host)
+
+    async def run(manifest_arg):
+        return await real_run_multistore(manifest_arg,FlakyScanner)
+
+    def save_report(audit):
+        if failure=="report":
+            raise OSError("synthetic partial report failure")
+        return f"{audit.id}.html","a"*64
+
+    def save_audit(_audit):
+        if failure=="audit":
+            raise OSError("synthetic partial audit failure")
+
+    monkeypatch.setattr(cli,"run_multistore",run)
+    monkeypatch.setattr(cli,"save_report",save_report)
+    monkeypatch.setattr(cli,"save_audit",save_audit)
+
+    with pytest.raises(OSError,match=f"synthetic partial {failure} failure"):
+        await cli._scan_multistore(SimpleNamespace(output=output,fail_on_confirmed=False),manifest)
     assert not output.exists()
 
 

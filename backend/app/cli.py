@@ -25,7 +25,7 @@ from .models import AuditRequest, AuditResult, Status
 from .manifest_signing import sign_manifest, verify_manifest_signature
 from .local_assessment import assess_local_source, render_assessment_cyclonedx, render_assessment_sarif
 from .monitoring import evaluate_monitor, incomplete_monitor_result, load_monitor_config
-from .multistore import load_multistore_manifest, run_multistore
+from .multistore import MultistoreScannerError, load_multistore_manifest, run_multistore
 from .policy import evaluate_policy, load_policy_pack
 from .report import save_report
 from .report_bundle import create_signed_bundle, verify_signed_bundle
@@ -231,7 +231,15 @@ async def _scan(args: argparse.Namespace) -> int:
 
 
 async def _scan_multistore(args: argparse.Namespace, manifest) -> int:
-    batch = await run_multistore(manifest)
+    try:
+        batch = await run_multistore(manifest)
+    except MultistoreScannerError as exc:
+        for shop in exc.partial_shops:
+            path, digest = save_report(shop.audit)
+            shop.audit.report_path, shop.audit.report_sha256 = path, digest
+            save_audit(shop.audit)
+        sys.stderr.write(f"Erreur: {exc}\n")
+        return EXIT_RUNTIME_ERROR
     for shop in batch.shops:
         path, digest = save_report(shop.audit)
         shop.audit.report_path, shop.audit.report_sha256 = path, digest
