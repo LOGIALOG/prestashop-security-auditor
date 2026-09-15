@@ -237,6 +237,8 @@ async def _scan_multistore(args: argparse.Namespace, manifest) -> int:
         shop.audit.report_path, shop.audit.report_sha256 = path, digest
         save_audit(shop.audit)
     _emit(batch.portable_export(), args.output)
+    if any(shop.audit.scan_completeness != "COMPLETED" for shop in batch.shops):
+        return EXIT_RUNTIME_ERROR
     if args.fail_on_confirmed and any(
         item.status == Status.CONFIRMED for shop in batch.shops for item in shop.audit.findings
     ):

@@ -31,6 +31,6 @@ Validation checks the schema, authorization, shop identifiers, origins and reque
   --fail-on-confirmed
 ```
 
-The optional policy flag returns exit code `10` when any shop has a confirmed finding. A network or policy failure stops the batch instead of returning a partial success that could be mistaken for complete coverage.
+The optional policy flag returns exit code `10` when every attempted scan is complete and a shop has a confirmed finding. An incomplete shop stops subsequent shops, but its structured evidence and every earlier completed audit are saved and included in the portable batch output before exit code `5` is returned. A scanner exception that produces no audit remains a runtime failure and does not fabricate evidence.
 
 Do not commit `multistore.local.json`, exported results or generated HTML reports.

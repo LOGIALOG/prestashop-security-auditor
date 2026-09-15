@@ -1,12 +1,15 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
+from types import SimpleNamespace
 
 import httpx
 import pytest
 
 from backend.app import cli, database
 from backend.app.advisories import build_advisory_manifest
-from backend.app.models import AuditResult, Status
+from backend.app.models import AuditResult, ScanIssue, Status
+from backend.app.multistore import MultistoreAudit, ShopAudit
 from backend.app.report import save_report as write_report
 from backend.app.scanner import PassiveScanner
 
@@ -25,6 +28,30 @@ def real_monitor_audit(identifier: str) -> AuditResult:
     for item in result.findings:
         item.is_demo = False
     return result
+
+
+def multistore_cli_audit(identifier: str, complete: bool = True, confirmed: bool = False) -> AuditResult:
+    payload = real_monitor_audit(identifier).model_dump(mode="json")
+    payload["findings"] = payload["findings"][:1] if confirmed else []
+    if confirmed:
+        payload["findings"][0]["status"] = Status.CONFIRMED
+    payload["scan_completeness"] = "COMPLETED" if complete else "INCOMPLETE"
+    payload["scan_issues"] = [] if complete else [
+        ScanIssue(kind="HTTP_STATUS",url="https://shop.test/",required=True,status_code=503).model_dump(mode="json")
+    ]
+    payload["report_path"] = None
+    payload["report_sha256"] = None
+    return AuditResult.model_validate(payload)
+
+
+def multistore_cli_batch(*audits: AuditResult) -> MultistoreAudit:
+    now = datetime(2000,1,1,tzinfo=timezone.utc)
+    return MultistoreAudit(
+        batch_id="synthetic-batch",
+        started_at=now,
+        completed_at=now,
+        shops=[ShopAudit(shop_id=f"shop-{index}",name=f"Synthetic {index}",audit=audit) for index,audit in enumerate(audits,1)],
+    )
 
 
 def test_advisory_validation_command(capsys):
@@ -120,6 +147,151 @@ def test_scan_returns_runtime_exit_code_on_network_failure(monkeypatch, capsys):
 
     assert cli.main(["scan", "https://shop.test", "--authorized", "--max-requests", "1"]) == cli.EXIT_RUNTIME_ERROR
     assert "offline" in capsys.readouterr().err
+
+
+@pytest.mark.asyncio
+async def test_multistore_cli_persists_first_incomplete_shop_before_runtime_exit(monkeypatch,tmp_path):
+    incomplete=multistore_cli_audit("incomplete-a",complete=False)
+    batch=multistore_cli_batch(incomplete)
+    reports=[]
+    audits=[]
+    output=tmp_path/"first-incomplete.json"
+
+    async def run(_manifest):
+        return batch
+
+    monkeypatch.setattr(cli,"run_multistore",run)
+    monkeypatch.setattr(cli,"save_report",lambda audit: reports.append(audit.id) or (f"{audit.id}.html","a"*64))
+    monkeypatch.setattr(cli,"save_audit",lambda audit: audits.append(audit.id))
+
+    code=await cli._scan_multistore(SimpleNamespace(output=output,fail_on_confirmed=False),object())
+    exported=json.loads(output.read_text(encoding="utf-8"))
+
+    assert code==cli.EXIT_RUNTIME_ERROR
+    assert reports==[incomplete.id]
+    assert audits==[incomplete.id]
+    assert exported["shops"][0]["shop_id"]=="shop-1"
+    assert exported["shops"][0]["audit"]["id"]==incomplete.id
+    assert exported["shops"][0]["audit"]["scan_completeness"]=="INCOMPLETE"
+    assert exported["shops"][0]["audit"]["scan_issues"][0]["required"] is True
+    assert "report_path" not in str(exported)
+
+
+@pytest.mark.asyncio
+async def test_multistore_cli_incomplete_exit_precedes_confirmed_policy_and_preserves_attempts(monkeypatch,tmp_path):
+    completed=multistore_cli_audit("completed-a",confirmed=True)
+    incomplete=multistore_cli_audit("incomplete-b",complete=False)
+    batch=multistore_cli_batch(completed,incomplete)
+    reports=[]
+    audits=[]
+    output=tmp_path/"later-incomplete.json"
+
+    async def run(_manifest):
+        return batch
+
+    monkeypatch.setattr(cli,"run_multistore",run)
+    monkeypatch.setattr(cli,"save_report",lambda audit: reports.append(audit.id) or (f"{audit.id}.html","a"*64))
+    monkeypatch.setattr(cli,"save_audit",lambda audit: audits.append(audit.id))
+
+    code=await cli._scan_multistore(SimpleNamespace(output=output,fail_on_confirmed=True),object())
+    exported=json.loads(output.read_text(encoding="utf-8"))
+
+    assert code==cli.EXIT_RUNTIME_ERROR
+    assert reports==[completed.id,incomplete.id]
+    assert audits==[completed.id,incomplete.id]
+    assert [shop["shop_id"] for shop in exported["shops"]]==["shop-1","shop-2"]
+    assert exported["shops"][1]["audit"]["id"]==incomplete.id
+    assert exported["shops"][1]["audit"]["scan_completeness"]=="INCOMPLETE"
+    assert exported["shops"][1]["audit"]["scan_issues"][0]["status_code"]==503
+    assert "report_path" not in str(exported)
+
+
+@pytest.mark.asyncio
+async def test_multistore_cli_all_completed_persists_once_and_returns_success(monkeypatch,tmp_path):
+    first=multistore_cli_audit("completed-a")
+    second=multistore_cli_audit("completed-b")
+    batch=multistore_cli_batch(first,second)
+    reports=[]
+    audits=[]
+    output=tmp_path/"completed.json"
+
+    async def run(_manifest):
+        return batch
+
+    monkeypatch.setattr(cli,"run_multistore",run)
+    monkeypatch.setattr(cli,"save_report",lambda audit: reports.append(audit.id) or (f"{audit.id}.html","a"*64))
+    monkeypatch.setattr(cli,"save_audit",lambda audit: audits.append(audit.id))
+
+    code=await cli._scan_multistore(SimpleNamespace(output=output,fail_on_confirmed=False),object())
+    exported=json.loads(output.read_text(encoding="utf-8"))
+
+    assert code==cli.EXIT_OK
+    assert reports==[first.id,second.id]
+    assert audits==[first.id,second.id]
+    assert [shop["audit"]["id"] for shop in exported["shops"]]==[first.id,second.id]
+
+
+@pytest.mark.asyncio
+async def test_multistore_cli_completed_confirmed_batch_keeps_policy_exit(monkeypatch,tmp_path):
+    confirmed=multistore_cli_audit("confirmed-a",confirmed=True)
+    batch=multistore_cli_batch(confirmed)
+    output=tmp_path/"confirmed.json"
+
+    async def run(_manifest):
+        return batch
+
+    monkeypatch.setattr(cli,"run_multistore",run)
+    monkeypatch.setattr(cli,"save_report",lambda audit: (f"{audit.id}.html","a"*64))
+    monkeypatch.setattr(cli,"save_audit",lambda _audit: None)
+
+    code=await cli._scan_multistore(SimpleNamespace(output=output,fail_on_confirmed=True),object())
+
+    assert code==cli.EXIT_POLICY_FINDINGS
+    assert output.is_file()
+
+
+@pytest.mark.asyncio
+@pytest.mark.parametrize("failure",["report","audit"])
+async def test_multistore_cli_persistence_failure_cannot_return_success(monkeypatch,tmp_path,failure):
+    completed=multistore_cli_audit("completed-a")
+    batch=multistore_cli_batch(completed)
+    output=tmp_path/f"{failure}-failure.json"
+
+    async def run(_manifest):
+        return batch
+
+    def save_report(audit):
+        if failure=="report":
+            raise OSError("synthetic report failure")
+        return f"{audit.id}.html","a"*64
+
+    def save_audit(_audit):
+        if failure=="audit":
+            raise OSError("synthetic audit failure")
+
+    monkeypatch.setattr(cli,"run_multistore",run)
+    monkeypatch.setattr(cli,"save_report",save_report)
+    monkeypatch.setattr(cli,"save_audit",save_audit)
+
+    with pytest.raises(OSError,match=f"synthetic {failure} failure"):
+        await cli._scan_multistore(SimpleNamespace(output=output,fail_on_confirmed=False),object())
+    assert not output.exists()
+
+
+def test_multistore_cli_scanner_exception_returns_runtime_error_without_output(monkeypatch,tmp_path,capsys):
+    output=tmp_path/"scanner-failure.json"
+
+    async def fail(_manifest):
+        raise OSError("synthetic scanner failure")
+
+    monkeypatch.setattr(cli,"load_multistore_manifest",lambda _path: object())
+    monkeypatch.setattr(cli,"run_multistore",fail)
+
+    code=cli.main(["multistore","scan","--manifest",str(tmp_path/"manifest.json"),"--output",str(output)])
+
+    assert code==cli.EXIT_RUNTIME_ERROR
+    assert "synthetic scanner failure" in capsys.readouterr().err
+    assert not output.exists()
 
 
 @pytest.mark.parametrize(
