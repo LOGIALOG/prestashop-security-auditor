@@ -116,10 +116,9 @@ def test_monitor_result_rejects_incomplete_state_with_comparison():
 
 def test_monitor_result_rejects_completed_state_with_incomplete_coverage():
     completed=evaluate_monitor(config(),audit("current"),compare_audits(audit("current"),None)).model_dump(mode="json")
-    required_issue=ScanIssue(kind="TRANSPORT_ERROR",url="https://shop.test/",required=True).model_dump(mode="json")
 
     with pytest.raises(ValidationError,match="résultat de monitoring normal"):
-        MonitorResult.model_validate(completed|{"scan_completeness":"INCOMPLETE","scan_issues":[required_issue]})
+        MonitorResult.model_validate(completed|{"scan_completeness":"INCOMPLETE","scan_issues":[]})
 
 
 def test_previous_audit_skips_newer_incomplete_evidence(monkeypatch,tmp_path):
@@ -175,8 +174,15 @@ def test_previous_audit_reaches_completed_past_newer_legacy_without_mutating_row
     with sqlite3.connect(db_path) as db:
         db.execute("INSERT INTO audits VALUES (?,?,?,?)",("legacy","shop.test",(NOW+timedelta(minutes=1)).isoformat(),serialized))
 
+    legacy_b=database.get_audit("legacy")
     selected=database.get_previous_real_audit(audit("current",completed_at=NOW+timedelta(minutes=2)))
 
+    assert legacy_b is not None
+    assert legacy_b.scan_completeness=="INCOMPLETE"
+    assert len(legacy_b.scan_issues)==1
+    assert legacy_b.scan_issues[0].kind=="CHECK_NOT_TESTED"
+    assert legacy_b.scan_issues[0].required is True
+    assert legacy_b.scan_issues[0].check_id=="coverage:legacy-record"
     assert selected is not None
     assert selected.id=="completed"
     with sqlite3.connect(db_path) as db:
