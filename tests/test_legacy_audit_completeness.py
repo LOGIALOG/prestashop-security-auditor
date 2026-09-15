@@ -142,6 +142,31 @@ def test_current_incomplete_payload_remains_incomplete():
     assert audit.scan_issues[0].kind == "TRANSPORT_ERROR"
 
 
+def test_current_completed_payload_with_required_issue_is_rejected():
+    payload = current_payload("invalid-completed") | {
+        "scan_issues": [
+            ScanIssue(
+                kind="TRANSPORT_ERROR",
+                url="https://legacy-audit.test",
+                required=True,
+            ).model_dump()
+        ]
+    }
+
+    with pytest.raises(ValidationError, match="audit complet"):
+        AuditResult.model_validate(payload)
+
+
+def test_current_incomplete_payload_without_required_issue_is_rejected():
+    payload = historical_payload("invalid-incomplete") | {
+        "scan_completeness": "INCOMPLETE",
+        "scan_issues": [],
+    }
+
+    with pytest.raises(ValidationError, match="incident obligatoire"):
+        AuditResult.model_validate(payload)
+
+
 def test_direct_constructor_without_completeness_fails_closed():
     audit = AuditResult(**historical_payload("direct-legacy"))
 
