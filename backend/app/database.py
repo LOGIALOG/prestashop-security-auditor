@@ -100,7 +100,10 @@ def get_previous_real_audit(audit: AuditResult) -> AuditResult | None:
             (audit.domain, audit.id, audit.completed_at.isoformat()),
         ).fetchall()
     for row in rows:
-        previous = AuditResult.model_validate_json(row[0])
+        try:
+            previous = AuditResult.model_validate_json(row[0])
+        except ValueError:
+            continue
         if not previous.is_demo and previous.scan_completeness == "COMPLETED":
             return previous
     return None
