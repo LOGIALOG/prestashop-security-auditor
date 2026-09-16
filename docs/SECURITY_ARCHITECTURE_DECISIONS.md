@@ -117,10 +117,13 @@ Model constraints enforce consistency: `COMPLETED` requires no required issues, 
 
 ### 5.4 Retry rules
 
-**CANONICAL** — retry and budget behavior is required-aware:
+**CANONICAL** — retry and budget behavior is required-aware. A URL observation made while a target was optional is not equivalent to required coverage:
 
+- a failed observation recorded while a target was optional does **not** satisfy that same target if it later becomes required;
+- when the same target later becomes required, the scanner attempts it again; a prior optional failure cannot be counted as completed required coverage;
 - optional resources that fail do not, by themselves, make the audit incomplete; required resources that fail record a required `ScanIssue`;
 - when the request budget is reached before a required resource is attempted, the required resource is retained/re-queued and the scan ends `INCOMPLETE` with a `BUDGET_EXHAUSTED` reason rather than dropping the requirement;
+- if a required retry cannot be executed because the request budget is exhausted, the scan remains `INCOMPLETE` with structured reason `BUDGET_EXHAUSTED`;
 - retries remain bounded by the configured `max_requests` budget; no unbounded retry is permitted.
 
 ### 5.5 Legacy persisted audit handling
@@ -155,7 +158,7 @@ MultistoreAudit   schema_version = 1.0
 ScanPlan          format_version = 1.0
 ```
 
-The scan-completeness changes were additive under the existing contracts where applicable (for example, `ScanPlan` remained on `format_version` `1.0`). No contract version was bumped that did not actually change; this record does not invent version increments.
+`ScanPlan` remains on `format_version` `1.0`: `required_requests` and `optional_requests` were additive properties accepted under the current export/versioning contract, and that specific additive evolution did not require a format bump. This is not a general guarantee: future additive properties must still be reviewed against the export contract and its semantic-compatibility rules before acceptance, and removal, rename or semantic reinterpretation of a field may require a version change. `PolicyEvaluation` and `MonitorResult` moved to `1.1` because their decision/state semantics changed. This record does not invent version increments.
 
 ### 5.8 Monitoring
 
@@ -167,11 +170,24 @@ The scan-completeness changes were additive under the existing contracts where a
 
 ### 5.9 Multistore
 
-**CANONICAL** — multistore behavior preserves partial and exceptional evidence:
+**CANONICAL** — multistore behavior preserves partial and exceptional evidence and stops at the first unsuccessful shop. Two distinct cases must not be conflated.
 
-- a partial/incomplete multistore outcome is preserved rather than discarded;
-- scanner exceptions remain explicit incomplete outcomes: a store failure raises a dedicated multistore scanner error that carries the partial per-store results;
-- one store's failure must not be rewritten as completed evidence for that store; the partial audits are still persisted, and the command returns the runtime-error exit.
+**Case A — a shop returns an `AuditResult` whose scan is `INCOMPLETE`:**
+
+- evidence from shops already attempted/completed is retained;
+- the incomplete shop result itself is retained with its structured scan issues;
+- later shops are not treated as successfully completed and are not scanned;
+- the multistore result remains incomplete, and incomplete/runtime failure semantics outrank a previously confirmed finding for CLI exit behavior: the command returns the runtime-error exit `5`, not the policy exit `10`;
+- a fully completed batch with a confirmed finding still returns `10`.
+
+**Case B — the scanner raises before producing an `AuditResult`:**
+
+- previously completed shop evidence is preserved and persisted rather than discarded;
+- the failed shop has no fabricated `AuditResult`;
+- `MultistoreScannerError` carries the failed shop identity and the partial progress retained so far;
+- runtime/incomplete semantics remain fail-closed, and the command returns the runtime-error exit `5`.
+
+Only the runtime-error family (`OSError`, `httpx.HTTPError`) is wrapped for partial preservation. Not all exceptions are wrapped: validation and policy errors keep their non-runtime handling.
 
 ## 6. Current and proposed advisory trust boundary
 
