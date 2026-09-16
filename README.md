@@ -63,6 +63,7 @@ Ouvrir [http://127.0.0.1:5173](http://127.0.0.1:5173). L’API reste locale sur 
 | Signer une livraison | [Bundles de rapport](docs/REPORT_BUNDLES.md) |
 | Auditer plusieurs boutiques | [Mode multistore](docs/MULTISTORE.md) |
 | Ajouter un extracteur | [SDK d’extracteurs](docs/EXTRACTOR_SDK.md) |
+| Comprendre les décisions d’architecture | [Registre des décisions de sécurité](docs/SECURITY_ARCHITECTURE_DECISIONS.md) |
 | Contribuer sans données réelles | [Guide de contribution](CONTRIBUTING.md) |
 | Signaler une vulnérabilité | [Politique de sécurité](SECURITY.md) |
 
