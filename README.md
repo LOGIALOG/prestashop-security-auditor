@@ -57,7 +57,6 @@ Ouvrir [http://127.0.0.1:5173](http://127.0.0.1:5173). L’API reste locale sur 
 | Scanner un checkout local | [CLI et source scan](#cli-développeur) |
 | Corréler les versions locales | [Évaluation advisory hors ligne](docs/LOCAL_ASSESSMENT.md) |
 | Vérifier avant un audit | [Préflight opérationnel](docs/OPERATIONAL_PREFLIGHT.md) |
-| Consulter la mémoire des décisions sécurité | [Décisions d’architecture et gates](docs/SECURITY_ARCHITECTURE_DECISIONS.md) |
 | Réutiliser un positionnement précis | [Registre des arguments produit](docs/areas/POSITIONING_ARGUMENTS.md) |
 | Concevoir une validation scientifique | [Protocole du corpus](docs/VALIDATION_PROTOCOL.md) |
 | Créer un rapport agence | [Profils white-label](docs/REPORT_PROFILES.md) |
