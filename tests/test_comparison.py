@@ -15,7 +15,7 @@ def finding(subject: str, status: Status, version: str | None = None) -> Finding
 
 
 def audit(audit_id: str, findings: list[Finding], score: int = 90, domain: str = "shop.test") -> AuditResult:
-    return AuditResult(is_demo=False, target=f"https://{domain}", id=audit_id, domain=domain, started_at=NOW, completed_at=NOW, request_count=1, scope=[f"https://{domain}/"], findings=findings, headers={}, cookies=[], score=ScoreResult(value=score, formula="fixture", factors=[]))
+    return AuditResult(is_demo=False, target=f"https://{domain}", id=audit_id, domain=domain, started_at=NOW, completed_at=NOW, request_count=1, scope=[f"https://{domain}/"], findings=findings, headers={}, cookies=[], scan_completeness="COMPLETED", scan_issues=[], score=ScoreResult(value=score, formula="fixture", factors=[]))
 
 
 def test_comparison_classifies_added_resolved_changed_and_unchanged():

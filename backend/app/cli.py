@@ -24,8 +24,8 @@ from .exports import render_json_export, render_sarif
 from .models import AuditRequest, AuditResult, Status
 from .manifest_signing import sign_manifest, verify_manifest_signature
 from .local_assessment import assess_local_source, render_assessment_cyclonedx, render_assessment_sarif
-from .monitoring import evaluate_monitor, load_monitor_config
-from .multistore import load_multistore_manifest, run_multistore
+from .monitoring import evaluate_monitor, incomplete_monitor_result, load_monitor_config
+from .multistore import MultistoreScannerError, load_multistore_manifest, run_multistore
 from .policy import evaluate_policy, load_policy_pack
 from .report import save_report
 from .report_bundle import create_signed_bundle, verify_signed_bundle
@@ -223,18 +223,30 @@ async def _scan(args: argparse.Namespace) -> int:
     audit.report_path, audit.report_sha256 = path, digest
     save_audit(audit)
     _emit(_render(audit, args.format), args.output)
+    if audit.scan_completeness != "COMPLETED":
+        return EXIT_RUNTIME_ERROR
     if args.fail_on_confirmed and any(item.status == Status.CONFIRMED for item in audit.findings):
         return EXIT_POLICY_FINDINGS
     return EXIT_OK
 
 
 async def _scan_multistore(args: argparse.Namespace, manifest) -> int:
-    batch = await run_multistore(manifest)
+    try:
+        batch = await run_multistore(manifest)
+    except MultistoreScannerError as exc:
+        for shop in exc.partial_shops:
+            path, digest = save_report(shop.audit)
+            shop.audit.report_path, shop.audit.report_sha256 = path, digest
+            save_audit(shop.audit)
+        sys.stderr.write(f"Erreur: {exc}\n")
+        return EXIT_RUNTIME_ERROR
     for shop in batch.shops:
         path, digest = save_report(shop.audit)
         shop.audit.report_path, shop.audit.report_sha256 = path, digest
         save_audit(shop.audit)
     _emit(batch.portable_export(), args.output)
+    if any(shop.audit.scan_completeness != "COMPLETED" for shop in batch.shops):
+        return EXIT_RUNTIME_ERROR
     if args.fail_on_confirmed and any(
         item.status == Status.CONFIRMED for shop in batch.shops for item in shop.audit.findings
     ):
@@ -244,6 +256,12 @@ async def _scan_multistore(args: argparse.Namespace, manifest) -> int:
 
 async def _run_monitor(args:argparse.Namespace,config)->int:
     audit=await PassiveScanner().run(config.audit_request())
+    if audit.scan_completeness != "COMPLETED":
+        path,digest=save_report(audit)
+        audit.report_path,audit.report_sha256=path,digest
+        save_audit(audit)
+        _emit(incomplete_monitor_result(config,audit).model_dump(mode="json"),args.output)
+        return EXIT_RUNTIME_ERROR
     comparison=compare_audits(audit,get_previous_real_audit(audit))
     path,digest=save_report(audit)
     audit.report_path,audit.report_sha256=path,digest

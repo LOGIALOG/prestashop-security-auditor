@@ -25,9 +25,11 @@ def test_scan_plan_is_deterministic_and_network_free(monkeypatch):
     assert payload["target_origin"] == "https://shop.test"
     assert payload["fixed_requests"] == [
         "https://shop.test/store/",
-        "https://shop.test/store/robots.txt",
         "https://shop.test/contact",
+        "https://shop.test/store/robots.txt",
     ]
+    assert payload["required_requests"] == ["https://shop.test/store/", "https://shop.test/contact"]
+    assert payload["optional_requests"] == ["https://shop.test/store/robots.txt"]
     assert payload["maximum_requests"] == 7
     assert payload["network_access"] is False
     assert payload["methods"] == ["GET"]

@@ -14,7 +14,7 @@ from backend.app.version import VERSION
 def test_report_displays_requires_access_and_disclaimer():
     now=datetime.now(timezone.utc)
     evidence=Evidence(url="https://shop.test/",evidence_type="active_module",excerpt="/modules/ybc_blog/",response_sha256="a"*64,confidence="high",detection_method="module_path")
-    audit=AuditResult(is_demo=False,target="https://shop.test",id="x",domain="shop.test",started_at=now,completed_at=now,request_count=2,scope=[],headers={},cookies=[],findings=[Finding(subject="ybc_blog",status=Status.REQUIRES_ACCESS,interpretation="Version inconnue",business_risk="À vérifier",remediation="Confirmer",evidence=[evidence])])
+    audit=AuditResult(is_demo=False,target="https://shop.test",id="x",domain="shop.test",started_at=now,completed_at=now,request_count=2,scope=[],headers={},cookies=[],findings=[Finding(subject="ybc_blog",status=Status.REQUIRES_ACCESS,interpretation="Version inconnue",business_risk="À vérifier",remediation="Confirmer",evidence=[evidence])],scan_completeness="COMPLETED",scan_issues=[])
     html,digest=render_report(audit)
     assert "REQUIRES_ACCESS" in html
     assert "ne constitue pas une preuve" in html

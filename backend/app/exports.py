@@ -103,6 +103,17 @@ def render_sarif(audit: AuditResult) -> dict[str, Any]:
                     "target": audit.target,
                     "completedAt": audit.completed_at.isoformat(),
                     "requestCount": audit.request_count,
+                    "scanCompleteness": audit.scan_completeness,
+                    "scanIssues": [
+                        {
+                            "kind": issue.kind,
+                            "url": issue.url,
+                            "required": issue.required,
+                            "checkId": issue.check_id,
+                            "statusCode": issue.status_code,
+                        }
+                        for issue in audit.scan_issues
+                    ],
                     "reportSha256": audit.report_sha256,
                 },
             }

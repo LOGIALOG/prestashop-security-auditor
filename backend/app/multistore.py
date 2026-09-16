@@ -8,6 +8,8 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, HttpUrl, field_validator, model_validator
 
+import httpx
+
 from .models import AuditRequest, AuditResult
 from .scanner import PassiveScanner, normalized_origin
 
@@ -68,6 +70,26 @@ class ShopAudit(BaseModel):
     audit: AuditResult
 
 
+class MultistoreScannerError(OSError):
+    """Scanner runtime failure that keeps already completed shops.
+
+    Only wraps the runtime-error family (OSError, httpx.HTTPError) so
+    invalid-input errors (ValueError, ValidationError, AuditPolicyError)
+    keep propagating unwrapped toward EXIT_INVALID_INPUT. Never fabricates
+    an AuditResult for the failed shop.
+    """
+
+    def __init__(
+        self,
+        failed_shop_id: str,
+        partial_shops: list[ShopAudit],
+        cause: BaseException,
+    ) -> None:
+        self.failed_shop_id = failed_shop_id
+        self.partial_shops: tuple[ShopAudit, ...] = tuple(partial_shops)
+        super().__init__(f"Echec du scanner multistore pour la boutique '{failed_shop_id}': {cause}")
+
+
 class MultistoreAudit(BaseModel):
     schema_version: Literal["1.0"] = "1.0"
     batch_id: str
@@ -113,8 +135,13 @@ async def run_multistore(
             max_requests=shop.max_requests,
             delay_seconds=manifest.delay_seconds,
         )
-        audit = await scanner_factory().run(request)
+        try:
+            audit = await scanner_factory().run(request)
+        except (OSError, httpx.HTTPError) as exc:
+            raise MultistoreScannerError(shop.shop_id, results, exc) from exc
         results.append(ShopAudit(shop_id=shop.shop_id, name=shop.name, audit=audit))
+        if audit.scan_completeness != "COMPLETED":
+            break
     return MultistoreAudit(
         batch_id=str(uuid4()),
         started_at=started_at,

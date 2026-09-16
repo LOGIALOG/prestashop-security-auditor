@@ -42,7 +42,7 @@ Plugins return bounded source positions, not arbitrary evidence objects. The hos
 
 Community signals support `active_module`, `asset_module` and `theme`, with low or medium confidence. They cannot supply a version and therefore cannot turn an advisory into `CONFIRMED`. Version extractors must first be reviewed and merged into the built-in extractor corpus.
 
-An invalid plugin ID, incompatible API version, exception, oversized output or invalid signal stops the audit. LOGIALOG never silently presents partial plugin coverage as a complete result.
+An invalid plugin ID, duplicate ID or oversized plugin set is rejected before scanning. An incompatible API version is recorded as a required `CHECK_NOT_TESTED` issue, while an exception, oversized output or invalid signal is recorded as `EXTRACTOR_ERROR` for the required resource. Both runtime outcomes make the audit `INCOMPLETE`, so LOGIALOG never silently presents partial plugin coverage as complete.
 
 ## Contribution requirements
 

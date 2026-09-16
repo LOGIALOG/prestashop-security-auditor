@@ -62,6 +62,7 @@ def render_report(audit: AuditResult, profile: ReportProfile | None = None) -> t
         else ""
     )
     subtitle = "Rapport de démonstration" if audit.is_demo else profile.report_title
+    completeness = "Complet" if audit.scan_completeness == "COMPLETED" else "Incomplet — aucune décision PASS autorisée"
     favicon = f"<link rel='icon' type='image/png' href='{_default_mark_data_uri()}'>" if _default_mark_data_uri() else ""
     html = f"""<!doctype html>
 <html lang='fr'>
@@ -96,6 +97,7 @@ td,th{{padding:12px;border-bottom:1px solid #e3edf7;text-align:left;vertical-ali
 <h2>{escape(subtitle)}</h2>
 <div class='meta'><b>Domaine :</b> {escape(audit.domain)}<br>
 <b>Date UTC :</b> {'Date fictive' if audit.is_demo else audit.completed_at.isoformat()}<br>
+<b>Complétude :</b> {completeness}<br>
 <b>Périmètre :</b> page d’accueil, robots.txt, pages publiques explicites et assets référencés ({audit.request_count} requêtes GET).<br>
 <b>Limites :</b> audit public, passif et non destructif; aucune preuve d’exploitation, aucun POST, aucun contournement.</div>
 <h2>Résumé exécutif</h2>
