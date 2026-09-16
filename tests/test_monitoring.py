@@ -220,3 +220,35 @@ def test_previous_real_audit_returns_none_for_demo_only_history(monkeypatch,tmp_
     selected=database.get_previous_real_audit(audit("current-real",completed_at=NOW+timedelta(minutes=1)))
 
     assert selected is None
+
+
+def insert_invalid_row(db_path,audit_result:AuditResult,completed_at:datetime)->str:
+    invalid=audit_result.model_dump(mode="json")
+    invalid["completed_at"]=completed_at.isoformat()
+    invalid.pop("scan_issues")
+    serialized=json.dumps(invalid,sort_keys=True)
+    with sqlite3.connect(db_path) as db:
+        db.execute("INSERT INTO audits VALUES (?,?,?,?)",(invalid["id"],invalid["domain"],invalid["completed_at"],serialized))
+    return serialized
+
+
+def test_previous_audit_skips_schema_invalid_row_to_reach_completed(monkeypatch,tmp_path):
+    db_path=tmp_path/"invalid-row.sqlite3"
+    monkeypatch.setattr(database,"DB_PATH",db_path)
+    database.save_audit(audit("completed",completed_at=NOW))
+    insert_invalid_row(db_path,audit("invalid",completed_at=NOW),NOW+timedelta(minutes=1))
+
+    selected=database.get_previous_real_audit(audit("current",completed_at=NOW+timedelta(minutes=2)))
+
+    assert selected is not None
+    assert selected.id=="completed"
+    assert selected.scan_completeness=="COMPLETED"
+
+
+def test_previous_audit_returns_none_when_only_schema_invalid_rows(monkeypatch,tmp_path):
+    db_path=tmp_path/"invalid-only.sqlite3"
+    monkeypatch.setattr(database,"DB_PATH",db_path)
+    database.init_db()
+    insert_invalid_row(db_path,audit("invalid",completed_at=NOW),NOW)
+
+    assert database.get_previous_real_audit(audit("current",completed_at=NOW+timedelta(minutes=1))) is None

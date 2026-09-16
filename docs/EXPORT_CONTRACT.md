@@ -32,4 +32,6 @@ Local assessment CycloneDX exports add vulnerability objects linked to stable co
 
 `logialog-local-source-assessment`, `logialog-doctor` and `logialog-scan-plan` currently use `format_version` `1.0`. Their safety fields (`network_access`, code-execution flags and cross-origin behavior) are assertions with stable meaning. Removing evidence provenance, weakening a safety assertion or changing a state meaning requires a new major format version.
 
+`logialog-scan-plan` `1.0` additively exposes `required_requests` and `optional_requests` alongside `fixed_requests`; this is a compatible within-major addition under the additive-property rule above and does not require a version bump. Adding further optional properties keeps `1.0`; removing a listed field, changing its meaning or weakening a safety assertion requires a new major version and fixture-based compatibility tests.
+
 Local assessment SARIF targets SARIF `2.1.0` and points each result to the local metadata file used as version evidence. An affected version correlation is a remediation signal, not exploitation evidence.
