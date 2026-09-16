@@ -94,12 +94,13 @@ def get_previous_real_audit(audit: AuditResult) -> AuditResult | None:
         return None
     init_db()
     with sqlite3.connect(DB_PATH) as db:
-        row = db.execute(
+        rows = db.execute(
             "SELECT payload FROM audits WHERE domain = ? AND id <> ? AND created_at < ? "
-            "ORDER BY created_at DESC LIMIT 1",
+            "ORDER BY created_at DESC",
             (audit.domain, audit.id, audit.completed_at.isoformat()),
-        ).fetchone()
-    if row is None:
-        return None
-    previous = AuditResult.model_validate_json(row[0])
-    return None if previous.is_demo else previous
+        ).fetchall()
+    for row in rows:
+        previous = AuditResult.model_validate_json(row[0])
+        if not previous.is_demo and previous.scan_completeness == "COMPLETED":
+            return previous
+    return None

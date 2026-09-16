@@ -2,7 +2,7 @@ import json
 from pathlib import Path
 
 from backend.app.exports import render_json_export, render_sarif
-from backend.app.models import AuditResult
+from backend.app.models import AuditResult, ScanIssue
 
 
 def demo_audit() -> AuditResult:
@@ -46,3 +46,24 @@ def test_sarif_uses_unique_rules_for_repeated_subjects():
 
     rules = exported["runs"][0]["tool"]["driver"]["rules"]
     assert len(rules) == len({rule["id"] for rule in rules})
+
+
+def test_sarif_preserves_incomplete_scan_state_and_structured_issues():
+    audit = demo_audit()
+    audit.scan_completeness = "INCOMPLETE"
+    audit.scan_issues = [
+        ScanIssue(kind="BUDGET_EXHAUSTED", url="https://demo.local/required", check_id="http:public-page")
+    ]
+
+    properties = render_sarif(audit)["runs"][0]["properties"]
+
+    assert properties["scanCompleteness"] == "INCOMPLETE"
+    assert properties["scanIssues"] == [
+        {
+            "kind": "BUDGET_EXHAUSTED",
+            "url": "https://demo.local/required",
+            "required": True,
+            "checkId": "http:public-page",
+            "statusCode": None,
+        }
+    ]

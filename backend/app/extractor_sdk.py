@@ -58,16 +58,16 @@ class ExtractorPluginError(ValueError):
     pass
 
 
-def run_extractor_plugins(
-    url: str,
-    body: str,
-    content_type: str,
-    plugins: Sequence[ExtractorPlugin],
-) -> list[Extracted]:
+class UnsupportedExtractorPluginError(ExtractorPluginError):
+    def __init__(self, plugin_id: str, api_version: str):
+        self.plugin_id = plugin_id
+        self.api_version = api_version
+        super().__init__(f"Version SDK incompatible pour {plugin_id}: {api_version}")
+
+
+def validate_extractor_plugins(plugins: Sequence[ExtractorPlugin]) -> None:
     if len(plugins) > MAX_PLUGINS:
         raise ExtractorPluginError(f"Maximum {MAX_PLUGINS} extracteurs par audit")
-    context = ExtractionContext(url=url, body=body, content_type=content_type)
-    output: list[Extracted] = []
     seen_ids: set[str] = set()
     for plugin in plugins:
         plugin_id = getattr(plugin, "plugin_id", "")
@@ -77,8 +77,21 @@ def run_extractor_plugins(
         if plugin_id in seen_ids:
             raise ExtractorPluginError(f"plugin_id dupliqué: {plugin_id}")
         if api_version != EXTRACTOR_API_VERSION:
-            raise ExtractorPluginError(f"Version SDK incompatible pour {plugin_id}: {api_version}")
+            raise UnsupportedExtractorPluginError(plugin_id, api_version)
         seen_ids.add(plugin_id)
+
+
+def run_extractor_plugins(
+    url: str,
+    body: str,
+    content_type: str,
+    plugins: Sequence[ExtractorPlugin],
+) -> list[Extracted]:
+    validate_extractor_plugins(plugins)
+    context = ExtractionContext(url=url, body=body, content_type=content_type)
+    output: list[Extracted] = []
+    for plugin in plugins:
+        plugin_id = getattr(plugin, "plugin_id", "")
         try:
             raw_signals = list(plugin.extract(context))
         except Exception as exc:

@@ -58,10 +58,10 @@ class PolicyViolation(BaseModel):
 
 
 class PolicyEvaluation(BaseModel):
-    schema_version: Literal["1.0"] = "1.0"
+    schema_version: Literal["1.1"] = "1.1"
     policy_id: str
     audit_id: str
-    decision: Literal["PASS","FAIL"]
+    decision: Literal["PASS","FAIL","UNKNOWN"]
     score: int | None
     counts: dict[str,int]
     violations: list[PolicyViolation]
@@ -76,6 +76,8 @@ def load_policy_pack(path:Path)->PolicyPack:
 def evaluate_policy(audit:AuditResult,policy:PolicyPack)->PolicyEvaluation:
     counts=Counter(finding.status for finding in audit.findings)
     violations:list[PolicyViolation]=[]
+    if audit.scan_completeness != "COMPLETED":
+        violations.append(PolicyViolation(rule="scan_incomplete",message="La couverture du scan est incomplète; la policy ne peut pas conclure PASS."))
     if audit.is_demo and not policy.allow_demo:
         violations.append(PolicyViolation(rule="demo_not_allowed",message="Les données de démonstration ne satisfont pas cette policy."))
     score=audit.score.value if audit.score else None
@@ -100,4 +102,5 @@ def evaluate_policy(audit:AuditResult,policy:PolicyPack)->PolicyEvaluation:
         violations.append(PolicyViolation(rule="minimum_evidence_confidence",message=f"Des preuves sont sous le niveau {policy.minimum_evidence_confidence}.",subjects=weak))
     if policy.require_report_hash and not audit.report_sha256:
         violations.append(PolicyViolation(rule="report_hash_required",message="Le SHA-256 canonique du rapport est absent."))
-    return PolicyEvaluation(policy_id=policy.policy_id,audit_id=audit.id,decision="FAIL" if violations else "PASS",score=score,counts={status.value:counts[status] for status in Status},violations=violations)
+    decision = "UNKNOWN" if audit.scan_completeness != "COMPLETED" else "FAIL" if violations else "PASS"
+    return PolicyEvaluation(policy_id=policy.policy_id,audit_id=audit.id,decision=decision,score=score,counts={status.value:counts[status] for status in Status},violations=violations)

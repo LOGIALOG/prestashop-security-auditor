@@ -4,6 +4,7 @@ import asyncio
 import hashlib
 import ipaddress
 import socket
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
 from uuid import uuid4
@@ -13,8 +14,15 @@ from typing import Sequence
 
 from .advisories import correlate
 from .extractors import Extracted, extract_asset_urls, extract_html
-from .extractor_sdk import ExtractorPlugin, run_extractor_plugins
-from .models import AuditRequest, AuditResult, Evidence, Finding, Status
+from .extractor_sdk import (
+    ExtractorPlugin,
+    ExtractorPluginError,
+    UnsupportedExtractorPluginError,
+    run_extractor_plugins,
+    validate_extractor_plugins,
+)
+from .models import AuditRequest, AuditResult, Evidence, Finding, ScanIssue, Status
+from .redaction import redact_url
 from .scoring import calculate_score
 
 SECURITY_HEADERS = ["content-security-policy", "strict-transport-security", "permissions-policy", "x-frame-options", "x-content-type-options", "referrer-policy", "server", "cf-ray", "cf-cache-status", "x-litespeed-cache"]
@@ -23,6 +31,22 @@ REQUIRED_HEADERS = set(SECURITY_HEADERS[:6])
 
 class AuditPolicyError(ValueError):
     pass
+
+
+@dataclass(frozen=True)
+class ScanResource:
+    url: str
+    required: bool
+    check_id: str
+    redirect_ancestry: frozenset[str] = frozenset()
+
+
+@dataclass(frozen=True)
+class UrlObservation:
+    terminal_success: bool = False
+    failed_optional: bool = False
+    failed_required: bool = False
+    redirect_destination: str | None = None
 
 
 def normalized_origin(url: str) -> tuple[str, str, int]:
@@ -64,31 +88,118 @@ class PassiveScanner:
         start = datetime.now(timezone.utc)
         root = str(request.target).rstrip("/") + "/"
         origin = normalized_origin(root)
-        urls = [root, root.rstrip("/") + "/robots.txt"] + [str(u) for u in request.public_pages]
-        for url in urls:
-            assert_allowed(url, origin)
+        candidates = [
+            ScanResource(root, True, "http:root"),
+            *[ScanResource(str(url), True, "http:public-page") for url in request.public_pages],
+            ScanResource(root.rstrip("/") + "/robots.txt", False, "http:robots"),
+        ]
+        resources: list[ScanResource] = []
+        for candidate in candidates:
+            if not any(resource.url == candidate.url for resource in resources):
+                resources.append(candidate)
+        for resource in resources:
+            assert_allowed(resource.url, origin)
         if self.transport is None:
             await asyncio.to_thread(reject_private_target, origin[1])
         extracted: list[Extracted] = []
         headers_seen: dict[str, str] = {}
         cookies: list[dict[str, str | bool]] = []
+        scan_issues: list[ScanIssue] = []
+        active_plugins = self.plugins
+        try:
+            validate_extractor_plugins(active_plugins)
+        except UnsupportedExtractorPluginError as exc:
+            scan_issues.append(
+                ScanIssue(
+                    kind="CHECK_NOT_TESTED",
+                    url=redact_url(root),
+                    required=True,
+                    check_id=f"plugin:{exc.plugin_id}",
+                )
+            )
+            active_plugins = ()
         root_hash = ""
-        visited: set[str] = set()
+        observations: dict[str, UrlObservation] = {}
+        attempted: list[str] = []
+
+        def record_failure(url: str, required: bool) -> None:
+            previous = observations.get(url)
+            observations[url] = UrlObservation(
+                failed_optional=(previous.failed_optional if previous else False) or not required,
+                failed_required=(previous.failed_required if previous else False) or required,
+            )
+
+        def schedule_redirect(resource: ScanResource, source: str, destination: str) -> None:
+            redirect_ancestry = resource.redirect_ancestry | {source}
+            if destination in redirect_ancestry:
+                scan_issues.append(
+                    ScanIssue(
+                        kind="REDIRECT_LOOP",
+                        url=redact_url(destination),
+                        required=resource.required,
+                        check_id=resource.check_id,
+                    )
+                )
+                return
+            resources.append(
+                ScanResource(
+                    destination,
+                    resource.required,
+                    resource.check_id,
+                    redirect_ancestry=redirect_ancestry,
+                )
+            )
+
         async with httpx.AsyncClient(transport=self.transport, follow_redirects=False, timeout=12, headers={"User-Agent": "LOGIALOG-Passive-Auditor/1.0"}) as client:
-            while urls and len(visited) < request.max_requests:
-                url = urls.pop(0)
-                if url in visited:
+            while resources:
+                resource = resources.pop(0)
+                url = resource.url
+                observation = observations.get(url)
+                if observation is not None:
+                    if observation.terminal_success:
+                        continue
+                    if observation.redirect_destination is not None:
+                        schedule_redirect(resource, url, observation.redirect_destination)
+                        continue
+                    if observation.failed_required or (observation.failed_optional and not resource.required):
+                        continue
+                if len(attempted) >= request.max_requests:
+                    if resource.required:
+                        resources.insert(0, resource)
+                        break
                     continue
                 assert_allowed(url, origin)
-                if visited:
+                if attempted:
                     await asyncio.sleep(request.delay_seconds)
                 self.methods.append("GET")
-                response = await client.get(url)
-                visited.add(url)
+                attempted.append(url)
+                try:
+                    response = await client.get(url)
+                except httpx.TransportError:
+                    record_failure(url, resource.required)
+                    scan_issues.append(
+                        ScanIssue(kind="TRANSPORT_ERROR", url=redact_url(url), required=resource.required)
+                    )
+                    continue
                 if 300 <= response.status_code < 400 and response.headers.get("location"):
                     destination = str(response.url.join(response.headers["location"]))
                     assert_allowed(destination, origin)
-                    urls.append(destination)
+                    observations[url] = UrlObservation(redirect_destination=destination)
+                    schedule_redirect(resource, url, destination)
+                    continue
+                if response.status_code == 404 and urlsplit(url).path.endswith("/robots.txt") and not resource.required:
+                    record_failure(url, required=False)
+                    continue
+                if response.status_code >= 300:
+                    record_failure(url, resource.required)
+                    scan_issues.append(
+                        ScanIssue(
+                            kind="HTTP_STATUS",
+                            url=redact_url(url),
+                            required=resource.required,
+                            status_code=response.status_code,
+                        )
+                    )
                     continue
                 if url == root:
                     root_hash = hashlib.sha256(response.content).hexdigest()
@@ -96,20 +207,71 @@ class PassiveScanner:
                     cookies = cookie_metadata(response.headers)
                 content_type = response.headers.get("content-type", "")
                 body = response.text[:2_000_000]
-                extracted.extend(extract_html(url, body, content_type))
-                extracted.extend(run_extractor_plugins(url, body, content_type, self.plugins))
+                try:
+                    extracted.extend(extract_html(url, body, content_type))
+                except Exception:
+                    record_failure(url, resource.required)
+                    scan_issues.append(
+                        ScanIssue(
+                            kind="EXTRACTOR_ERROR",
+                            url=redact_url(url),
+                            required=resource.required,
+                            check_id="builtin:html-extractor",
+                        )
+                    )
+                    continue
+                try:
+                    extracted.extend(run_extractor_plugins(url, body, content_type, active_plugins))
+                except ExtractorPluginError:
+                    record_failure(url, resource.required)
+                    scan_issues.append(
+                        ScanIssue(
+                            kind="EXTRACTOR_ERROR",
+                            url=redact_url(url),
+                            required=resource.required,
+                            check_id="plugin:configured-extractors",
+                        )
+                    )
+                    continue
                 if "html" in content_type:
                     for asset in extract_asset_urls(url, body):
                         try:
                             assert_allowed(asset, origin)
                         except AuditPolicyError:
                             continue
-                        if len(visited) + len(urls) < request.max_requests:
-                            urls.append(asset)
+                        queued_urls = {queued.url for queued in resources}
+                        if asset not in observations and asset not in queued_urls and len(attempted) + len(resources) < request.max_requests:
+                            resources.append(ScanResource(asset, False, "http:discovered-asset"))
+                observations[url] = UrlObservation(terminal_success=True)
+        pending_required = next((resource for resource in resources if resource.required), None)
+        if pending_required is not None:
+            scan_issues.append(
+                ScanIssue(
+                    kind="BUDGET_EXHAUSTED",
+                    url=redact_url(pending_required.url),
+                    required=True,
+                    check_id=pending_required.check_id,
+                )
+            )
         findings = correlate(extracted)
         for name, value in headers_seen.items():
             if name in REQUIRED_HEADERS and value == "Absent":
                 evidence = Evidence(url=root, evidence_type="http_header", excerpt=f"{name}: Absent", response_sha256=root_hash, confidence="high", detection_method="response_header_check")
                 findings.append(Finding(subject=name, status=Status.HARDENING, severity="Faible", interpretation=f"En-tête {name} absent; aucune exploitation démontrée.", business_risk="Réduction de la défense en profondeur du navigateur.", remediation=f"Ajouter {name} après tests de compatibilité.", evidence=[evidence]))
         score = calculate_score(findings)
-        return AuditResult(is_demo=False, target=root.rstrip("/"), id=str(uuid4()), domain=origin[1], started_at=start, completed_at=datetime.now(timezone.utc), request_count=len(visited), scope=sorted(visited), findings=findings, headers=headers_seen, cookies=cookies, score=score)
+        return AuditResult(
+            is_demo=False,
+            target=root.rstrip("/"),
+            id=str(uuid4()),
+            domain=origin[1],
+            started_at=start,
+            completed_at=datetime.now(timezone.utc),
+            request_count=len(attempted),
+            scope=sorted(set(attempted)),
+            findings=findings,
+            headers=headers_seen,
+            cookies=cookies,
+            scan_completeness="INCOMPLETE" if any(issue.required for issue in scan_issues) else "COMPLETED",
+            scan_issues=scan_issues,
+            score=score,
+        )

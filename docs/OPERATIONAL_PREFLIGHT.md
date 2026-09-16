@@ -16,6 +16,6 @@ Required checks cover Python 3.13+, the bundled advisory snapshot, its productio
 .\.venv\Scripts\python.exe -m backend.app.cli plan https://shop.example --authorized --max-requests 10 --delay 2 --public-page https://shop.example/contact --output reports\scan-plan.json
 ```
 
-The plan validates the same authorization, URL, request-count and delay constraints as a real scan. It lists the fixed start URLs and declares the dynamic same-origin asset behavior, GET-only method, redirect boundary and maximum request count. Cross-origin public pages are rejected. Creating the plan does not resolve DNS or send HTTP requests.
+The plan validates the same authorization, URL, request-count and delay constraints as a real scan. It lists required start URLs separately from optional start URLs, then declares the dynamic same-origin asset behavior, GET-only method, redirect boundary and maximum request count. The root and explicit public pages are required; `robots.txt` and dynamically discovered assets are optional. Cross-origin public pages are rejected. Creating the plan does not resolve DNS or send HTTP requests.
 
 The real `scan` command accepts the same repeatable `--public-page` option.

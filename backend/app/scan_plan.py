@@ -13,6 +13,8 @@ class ScanPlan(BaseModel):
     format_version: Literal["1.0"] = "1.0"
     target_origin: str
     fixed_requests: list[str]
+    required_requests: list[str]
+    optional_requests: list[str]
     methods: list[Literal["GET"]] = Field(default_factory=lambda: ["GET"])
     dynamic_same_origin_assets: bool = True
     redirects_same_origin_only: bool = True
@@ -30,7 +32,9 @@ def build_scan_plan(request: AuditRequest) -> ScanPlan:
     default_port = 443 if scheme == "https" else 80
     authority = host if port == default_port else f"{host}:{port}"
     target_origin = f"{scheme}://{authority}"
-    candidates = [root, root.rstrip("/") + "/robots.txt", *[str(page) for page in request.public_pages]]
+    required_requests = [root, *[str(page) for page in request.public_pages]]
+    optional_requests = [root.rstrip("/") + "/robots.txt"]
+    candidates = [*required_requests, *optional_requests]
     fixed_requests: list[str] = []
     for url in candidates:
         assert_allowed(url, origin)
@@ -39,6 +43,8 @@ def build_scan_plan(request: AuditRequest) -> ScanPlan:
     return ScanPlan(
         target_origin=target_origin,
         fixed_requests=fixed_requests,
+        required_requests=list(dict.fromkeys(required_requests)),
+        optional_requests=[url for url in dict.fromkeys(optional_requests) if url not in required_requests],
         delay_seconds=request.delay_seconds,
         maximum_requests=request.max_requests,
         minimum_requests=min(len(fixed_requests), request.max_requests),

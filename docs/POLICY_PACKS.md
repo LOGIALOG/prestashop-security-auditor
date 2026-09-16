@@ -29,6 +29,8 @@ Unknown fields, invalid statuses, duplicate forbidden statuses and invalid limit
   --output reports\policy-result.json
 ```
 
-The result lists every violated rule and the related subjects. `PASS` returns exit code `0`; `FAIL` returns `10`, making the same policy usable locally and in CI.
+The result lists every violated rule and the related subjects. `PASS` returns exit code `0`; `FAIL` returns `10`, making the same policy usable locally and in CI. An audit whose `scan_completeness` is `INCOMPLETE` produces `UNKNOWN`, never `PASS`; the CLI treats every non-`PASS` policy result as a blocking exit.
+
+Policy evaluation output uses schema `1.1`. This version adds the `UNKNOWN` decision so strict consumers can distinguish incomplete evidence from a completed policy failure. Policy pack input remains schema `1.0`.
 
 Copy a bundled pack to `policy.local.json` for private thresholds. That filename is ignored by Git. Do not place client identity, domains or credentials in a policy pack.
