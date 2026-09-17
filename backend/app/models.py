@@ -29,6 +29,8 @@ class ScanIssue(BaseModel):
     required: bool = True
     check_id: str | None = None
     status_code: int | None = Field(default=None, ge=300, le=599)
+    detail: str | None = Field(default=None, max_length=200)
+    captured_at: datetime | None = None
 
     @model_validator(mode="after")
     def issue_consistency(self) -> "ScanIssue":

@@ -6,7 +6,7 @@ Current `format_version`: `1.0`.
 
 Top-level fields are `format`, `format_version`, `demo` and `audit`. The audit payload follows the API model, except that local filesystem paths are excluded. Consumers must reject unsupported major versions and may accept new fields within the same major version.
 
-The audit payload exposes `scan_completeness` as `COMPLETED` or `INCOMPLETE` and records bounded `scan_issues`. Each issue identifies whether the failed resource or check was required. HTTP failures on discovered optional assets remain visible without making mandatory coverage incomplete; failures on the root, explicitly requested public pages, required extractors or required checks make the audit incomplete. Consumers must not convert an incomplete audit into a successful policy decision, even when its findings list is empty.
+The audit payload exposes `scan_completeness` as `COMPLETED` or `INCOMPLETE` and records bounded `scan_issues`. Each issue identifies whether the failed resource or check was required. Optional `detail` and `captured_at` fields may accompany an issue with bounded, redacted failure context; they are additive, carry no decision authority, and do not change coverage semantics. HTTP failures on discovered optional assets remain visible without making mandatory coverage incomplete; failures on the root, explicitly requested public pages, required extractors or required checks make the audit incomplete. Consumers must not convert an incomplete audit into a successful policy decision, even when its findings list is empty.
 
 Evidence provenance fields (`url`, `captured_at`, `evidence_type`, `excerpt`, `response_sha256`, `confidence` and `detection_method`) will not be removed or change meaning within version 1.
 

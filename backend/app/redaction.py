@@ -5,6 +5,15 @@ SENSITIVE_KEYS = re.compile(r"token|secret|key|pass|auth|session|email|phone|tel
 EMAIL = re.compile(r"[\w.+-]+@[\w.-]+\.[A-Za-z]{2,}")
 PHONE = re.compile(r"(?<!\w)(?:\+?\d[\d .()-]{7,}\d)")
 TOKEN = re.compile(r"(?i)(bearer\s+)[A-Za-z0-9._~-]+|((?:token|secret|api[_-]?key)\s*[:=]\s*)[^\s&;]+")
+SENSITIVE_KEYWORDS = r"token|secret|key|pass|pwd|auth|session|sid|csrf|jwt|email|phone|tel"
+SENSITIVE_PARAM = re.compile(
+    rf"(?i)([\w.-]*(?:{SENSITIVE_KEYWORDS})[\w.-]*\s*[:=]\s*)[^\s&;]+"
+)
+
+
+def redact_parameters(value: str) -> str:
+    """Mask values of sensitive query/parameter keys in free text (e.g. URLs)."""
+    return SENSITIVE_PARAM.sub(lambda match: match.group(1) + "[MASQUÉ]", value)
 
 
 def redact_text(value: str, limit: int = 280) -> str:

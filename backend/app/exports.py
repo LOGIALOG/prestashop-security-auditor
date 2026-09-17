@@ -111,6 +111,8 @@ def render_sarif(audit: AuditResult) -> dict[str, Any]:
                             "required": issue.required,
                             "checkId": issue.check_id,
                             "statusCode": issue.status_code,
+                            "detail": issue.detail,
+                            "capturedAt": issue.captured_at.isoformat() if issue.captured_at else None,
                         }
                         for issue in audit.scan_issues
                     ],

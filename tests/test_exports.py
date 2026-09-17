@@ -1,4 +1,5 @@
 import json
+from datetime import datetime, timezone
 from pathlib import Path
 
 from backend.app.exports import render_json_export, render_sarif
@@ -65,5 +66,30 @@ def test_sarif_preserves_incomplete_scan_state_and_structured_issues():
             "required": True,
             "checkId": "http:public-page",
             "statusCode": None,
+            "detail": None,
+            "capturedAt": None,
         }
     ]
+
+
+def test_exports_preserve_transport_issue_detail_and_timestamp():
+    audit = demo_audit()
+    audit.scan_completeness = "INCOMPLETE"
+    captured = datetime(2000, 1, 1, tzinfo=timezone.utc)
+    audit.scan_issues = [
+        ScanIssue(
+            kind="TRANSPORT_ERROR",
+            url="https://demo.local/",
+            required=True,
+            detail="ConnectError: [MASQUÉ]",
+            captured_at=captured,
+        )
+    ]
+
+    run_properties = render_sarif(audit)["runs"][0]["properties"]
+    assert run_properties["scanIssues"][0]["detail"] == "ConnectError: [MASQUÉ]"
+    assert run_properties["scanIssues"][0]["capturedAt"] == captured.isoformat()
+
+    exported = render_json_export(audit)
+    assert exported["audit"]["scan_issues"][0]["detail"] == "ConnectError: [MASQUÉ]"
+    assert datetime.fromisoformat(exported["audit"]["scan_issues"][0]["captured_at"]) == captured
