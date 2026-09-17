@@ -79,6 +79,7 @@ def render_sarif(audit: AuditResult) -> dict[str, Any]:
                     "status": finding.status.value,
                     "businessRisk": finding.business_risk,
                     "accessRequired": finding.access_required,
+                    "advisorySnapshotSha256": finding.advisory_snapshot_sha256,
                 },
             }
         )
@@ -117,6 +118,8 @@ def render_sarif(audit: AuditResult) -> dict[str, Any]:
                         for issue in audit.scan_issues
                     ],
                     "reportSha256": audit.report_sha256,
+                    "advisorySnapshotSha256": audit.advisory_snapshot_sha256,
+                    "advisorySnapshotDate": audit.advisory_snapshot_date.isoformat() if audit.advisory_snapshot_date else None,
                 },
             }
         ],

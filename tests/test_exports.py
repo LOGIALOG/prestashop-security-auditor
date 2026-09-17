@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 from backend.app.exports import render_json_export, render_sarif
@@ -93,3 +93,21 @@ def test_exports_preserve_transport_issue_detail_and_timestamp():
     exported = render_json_export(audit)
     assert exported["audit"]["scan_issues"][0]["detail"] == "ConnectError: [MASQUÉ]"
     assert datetime.fromisoformat(exported["audit"]["scan_issues"][0]["captured_at"]) == captured
+
+
+def test_exports_bind_advisory_snapshot_identity_additively():
+    audit = demo_audit()
+    digest = "a" * 64
+    audit.advisory_snapshot_sha256 = digest
+    audit.advisory_snapshot_date = date(2026, 1, 1)
+    audit.findings[0].advisory_snapshot_sha256 = digest
+
+    run = render_sarif(audit)["runs"][0]
+    assert run["properties"]["advisorySnapshotSha256"] == digest
+    assert run["properties"]["advisorySnapshotDate"] == "2026-01-01"
+    assert run["results"][0]["properties"]["advisorySnapshotSha256"] == digest
+
+    exported = render_json_export(audit)
+    assert exported["audit"]["advisory_snapshot_sha256"] == digest
+    assert exported["audit"]["advisory_snapshot_date"] == "2026-01-01"
+    assert exported["audit"]["findings"][0]["advisory_snapshot_sha256"] == digest

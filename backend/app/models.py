@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from enum import Enum
 from typing import Literal
 
@@ -63,6 +63,7 @@ class Finding(BaseModel):
     remediation: str
     source: str | None = None
     access_required: str | None = None
+    advisory_snapshot_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     evidence: list[Evidence] = Field(default_factory=list)
 
     @model_validator(mode="after")
@@ -103,6 +104,8 @@ class AuditResult(BaseModel):
     scan_issues: list[ScanIssue]
     report_path: str | None = None
     report_sha256: str | None = None
+    advisory_snapshot_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    advisory_snapshot_date: date | None = None
     score: "ScoreResult | None" = None
 
     @model_validator(mode="before")

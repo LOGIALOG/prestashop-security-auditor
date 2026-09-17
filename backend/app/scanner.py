@@ -12,7 +12,7 @@ from uuid import uuid4
 import httpx
 from typing import Sequence
 
-from .advisories import correlate
+from .advisories import advisory_snapshot_identity, correlate
 from .extractors import Extracted, extract_asset_urls, extract_html
 from .extractor_sdk import (
     ExtractorPlugin,
@@ -277,7 +277,8 @@ class PassiveScanner:
                     check_id=pending_required.check_id,
                 )
             )
-        findings = correlate(extracted)
+        snapshot = advisory_snapshot_identity()
+        findings = correlate(extracted, snapshot.snapshot_sha256)
         for name, value in headers_seen.items():
             if name in REQUIRED_HEADERS and value == "Absent":
                 evidence = Evidence(url=root, evidence_type="http_header", excerpt=f"{name}: Absent", response_sha256=root_hash, confidence="high", detection_method="response_header_check")
@@ -297,5 +298,7 @@ class PassiveScanner:
             cookies=cookies,
             scan_completeness="INCOMPLETE" if any(issue.required for issue in scan_issues) else "COMPLETED",
             scan_issues=scan_issues,
+            advisory_snapshot_sha256=snapshot.snapshot_sha256,
+            advisory_snapshot_date=snapshot.snapshot_date,
             score=score,
         )
