@@ -3,7 +3,7 @@ import pytest
 
 from backend.app import scanner as scanner_module
 from backend.app.extractor_sdk import PluginSignal
-from backend.app.models import AuditRequest
+from backend.app.models import AuditRequest, ScanIssue
 from backend.app.policy import PolicyPack, evaluate_policy
 from backend.app.scanner import PassiveScanner
 
@@ -637,3 +637,227 @@ async def test_redirect_chain_respects_budget_and_never_passes(monkeypatch):
     assert result.request_count == 2
     assert_incomplete_unknown(result)
     assert any(issue.kind == "BUDGET_EXHAUSTED" and issue.required for issue in result.scan_issues)
+
+
+def test_scan_issue_legacy_payload_defaults_optional_detail_fields():
+    issue = ScanIssue(kind="TRANSPORT_ERROR", url="https://shop.test/", required=True)
+
+    assert issue.detail is None
+    assert issue.captured_at is None
+
+    reloaded = ScanIssue.model_validate(
+        {"kind": "TRANSPORT_ERROR", "url": "https://shop.test/", "required": True}
+    )
+    assert reloaded.detail is None
+    assert reloaded.captured_at is None
+
+
+@pytest.mark.asyncio
+async def test_required_transport_error_captures_bounded_redacted_detail(monkeypatch):
+    def handler(request):
+        raise httpx.ConnectError(
+            "synthetic refusal token=SUPERSECRET123 contact=ops@example.test",
+            request=request,
+        )
+
+    result = await run_synthetic(handler, monkeypatch, max_requests=2)
+
+    issue = next(issue for issue in result.scan_issues if issue.kind == "TRANSPORT_ERROR")
+    assert issue.required is True
+    assert issue.detail
+    assert len(issue.detail) <= 200
+    assert issue.captured_at is not None
+    assert "SUPERSECRET123" not in issue.detail
+    assert "ops@example.test" not in issue.detail
+    assert_incomplete_unknown(result)
+
+
+def test_redact_parameters_masks_sensitive_query_keys():
+    from backend.app.redaction import redact_parameters
+
+    text = (
+        "session=SESSVAL&auth=AUTHVAL&password=PASSVAL&pass=PASS2VAL&pwd=PWDVAL"
+        "&token=TOKVAL&secret=SECVAL&api_key=APIVAL&key=KEYVAL&email=ops@example.test"
+    )
+
+    redacted = redact_parameters(text)
+
+    for secret in (
+        "SESSVAL",
+        "AUTHVAL",
+        "PASSVAL",
+        "PASS2VAL",
+        "PWDVAL",
+        "TOKVAL",
+        "SECVAL",
+        "APIVAL",
+        "KEYVAL",
+        "ops@example.test",
+    ):
+        assert secret not in redacted
+    assert redacted.count("[MASQUÉ]") >= 10
+
+
+def test_redact_parameters_masks_compound_and_alternate_keys():
+    from backend.app.redaction import redact_parameters
+
+    text = (
+        "session_id=SESSIDVAL&sessionid=SESSIONID2VAL&secret_key=SECKEYVAL"
+        "&private_key=PRIVKEYVAL&access_key=ACCKEYVAL&passwd=PASSWDVAL"
+        "&csrf=CSRFVAL&jwt=JWTVAL"
+    )
+
+    redacted = redact_parameters(text)
+
+    for secret in (
+        "SESSIDVAL",
+        "SESSIONID2VAL",
+        "SECKEYVAL",
+        "PRIVKEYVAL",
+        "ACCKEYVAL",
+        "PASSWDVAL",
+        "CSRFVAL",
+        "JWTVAL",
+    ):
+        assert secret not in redacted
+    assert redacted.count("[MASQUÉ]") >= 8
+
+
+@pytest.mark.asyncio
+async def test_transport_error_detail_masks_compound_sensitive_keys(monkeypatch):
+    def handler(request):
+        raise httpx.ConnectError(
+            "connection failed GET https://shop.test/?session_id=SESSIDVAL"
+            "&sessionid=SESSIONID2VAL&secret_key=SECKEYVAL&private_key=PRIVKEYVAL"
+            "&access_key=ACCKEYVAL&passwd=PASSWDVAL&csrf=CSRFVAL&jwt=JWTVAL",
+            request=request,
+        )
+
+    result = await run_synthetic(handler, monkeypatch, max_requests=2)
+    detail = next(issue for issue in result.scan_issues if issue.kind == "TRANSPORT_ERROR").detail
+
+    assert detail
+    assert len(detail) <= 200
+    for secret in (
+        "SESSIDVAL",
+        "SESSIONID2VAL",
+        "SECKEYVAL",
+        "PRIVKEYVAL",
+        "ACCKEYVAL",
+        "PASSWDVAL",
+        "CSRFVAL",
+        "JWTVAL",
+    ):
+        assert secret not in detail
+    assert "[MASQUÉ]" in detail
+    assert_incomplete_unknown(result)
+
+
+@pytest.mark.asyncio
+async def test_transport_error_detail_masks_sensitive_query_parameters(monkeypatch):
+    def handler(request):
+        raise httpx.ConnectError(
+            "connection failed GET https://shop.test/?token=TOK456&secret=SEC123"
+            "&api_key=API789&key=KEY000&password=PW789&pass=PW111&pwd=PW222"
+            "&auth=AUTHTOK&session=SESSID123&sid=SID999"
+            "&email=ops@example.test&phone=+212600000000",
+            request=request,
+        )
+
+    result = await run_synthetic(handler, monkeypatch, max_requests=2)
+    detail = next(issue for issue in result.scan_issues if issue.kind == "TRANSPORT_ERROR").detail
+
+    assert detail
+    assert len(detail) <= 200
+    for secret in (
+        "TOK456",
+        "SEC123",
+        "API789",
+        "KEY000",
+        "PW789",
+        "PW111",
+        "PW222",
+        "AUTHTOK",
+        "SESSID123",
+        "SID999",
+        "ops@example.test",
+        "+212600000000",
+    ):
+        assert secret not in detail
+    assert "[MASQUÉ]" in detail
+    assert_incomplete_unknown(result)
+
+
+@pytest.mark.asyncio
+async def test_optional_transport_error_records_detail_without_becoming_incomplete(monkeypatch):
+    def handler(request):
+        if request.url.path == "/":
+            return httpx.Response(
+                200,
+                text='<script src="/optional-transport.js"></script>',
+                headers={"content-type": "text/html"},
+            )
+        if request.url.path == "/optional-transport.js":
+            raise httpx.ConnectError("synthetic optional transport failure", request=request)
+        return httpx.Response(200)
+
+    result = await run_synthetic(handler, monkeypatch, max_requests=3)
+
+    issue = next(
+        issue
+        for issue in result.scan_issues
+        if issue.kind == "TRANSPORT_ERROR" and not issue.required
+    )
+    assert issue.detail
+    assert issue.captured_at is not None
+    assert result.scan_completeness == "COMPLETED"
+    assert evaluate_policy(result, POLICY).decision == "PASS"
+
+
+@pytest.mark.asyncio
+async def test_builtin_extractor_error_captures_detail(monkeypatch):
+    def handler(_request):
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html"})
+
+    def failing_extract_html(_url, _body, _content_type):
+        raise RuntimeError("synthetic builtin extractor failure")
+
+    monkeypatch.setattr("backend.app.scanner.extract_html", failing_extract_html)
+    result = await run_synthetic(handler, monkeypatch, max_requests=2)
+
+    issue = next(
+        issue
+        for issue in result.scan_issues
+        if issue.kind == "EXTRACTOR_ERROR" and issue.check_id == "builtin:html-extractor"
+    )
+    assert issue.required is True
+    assert issue.detail
+    assert "RuntimeError" in issue.detail
+    assert_incomplete_unknown(result)
+
+
+@pytest.mark.asyncio
+async def test_plugin_extractor_error_captures_detail_and_check_id(monkeypatch):
+    class FailingPlugin:
+        plugin_id = "synthetic.detail-extractor"
+        api_version = "1.0"
+
+        def extract(self, _context):
+            raise RuntimeError("synthetic plugin failure")
+
+    result = await run_synthetic(
+        lambda _request: httpx.Response(200, text="ok", headers={"content-type": "text/html"}),
+        monkeypatch,
+        max_requests=2,
+        plugins=[FailingPlugin()],
+    )
+
+    issue = next(
+        issue
+        for issue in result.scan_issues
+        if issue.kind == "EXTRACTOR_ERROR" and issue.check_id == "plugin:configured-extractors"
+    )
+    assert issue.required is True
+    assert issue.detail
+    assert "RuntimeError" in issue.detail
+    assert_incomplete_unknown(result)

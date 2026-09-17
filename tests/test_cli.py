@@ -644,6 +644,8 @@ def test_monitor_incomplete_scan_persists_report_and_structured_evidence(monkeyp
             "required": True,
             "check_id": None,
             "status_code": 503,
+            "detail": None,
+            "captured_at": None,
         }
     ]
     persisted = database.get_audit(payload["audit_id"])

@@ -22,7 +22,7 @@ from .extractor_sdk import (
     validate_extractor_plugins,
 )
 from .models import AuditRequest, AuditResult, Evidence, Finding, ScanIssue, Status
-from .redaction import redact_url
+from .redaction import redact_parameters, redact_text, redact_url
 from .scoring import calculate_score
 
 SECURITY_HEADERS = ["content-security-policy", "strict-transport-security", "permissions-policy", "x-frame-options", "x-content-type-options", "referrer-policy", "server", "cf-ray", "cf-cache-status", "x-litespeed-cache"]
@@ -65,6 +65,20 @@ def reject_private_target(host: str) -> None:
         ip = ipaddress.ip_address(info[4][0])
         if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved:
             raise AuditPolicyError("Les cibles privées ou locales ne sont pas autorisées pour l'audit distant")
+
+
+def issue_detail(exc: BaseException, *, check_id: str | None = None, include_message: bool = False) -> str:
+    parts = [type(exc).__name__]
+    cause = exc.__cause__
+    if cause is not None:
+        parts.append(type(cause).__name__)
+        if include_message:
+            parts.append(str(cause))
+    elif include_message:
+        parts.append(str(exc))
+    if check_id:
+        parts.append(check_id)
+    return redact_text(redact_parameters(": ".join(parts)), limit=200)
 
 
 def cookie_metadata(headers: httpx.Headers) -> list[dict[str, str | bool]]:
@@ -175,10 +189,16 @@ class PassiveScanner:
                 attempted.append(url)
                 try:
                     response = await client.get(url)
-                except httpx.TransportError:
+                except httpx.TransportError as exc:
                     record_failure(url, resource.required)
                     scan_issues.append(
-                        ScanIssue(kind="TRANSPORT_ERROR", url=redact_url(url), required=resource.required)
+                        ScanIssue(
+                            kind="TRANSPORT_ERROR",
+                            url=redact_url(url),
+                            required=resource.required,
+                            detail=issue_detail(exc, include_message=True),
+                            captured_at=datetime.now(timezone.utc),
+                        )
                     )
                     continue
                 if 300 <= response.status_code < 400 and response.headers.get("location"):
@@ -209,7 +229,7 @@ class PassiveScanner:
                 body = response.text[:2_000_000]
                 try:
                     extracted.extend(extract_html(url, body, content_type))
-                except Exception:
+                except Exception as exc:
                     record_failure(url, resource.required)
                     scan_issues.append(
                         ScanIssue(
@@ -217,12 +237,14 @@ class PassiveScanner:
                             url=redact_url(url),
                             required=resource.required,
                             check_id="builtin:html-extractor",
+                            detail=issue_detail(exc, check_id="builtin:html-extractor"),
+                            captured_at=datetime.now(timezone.utc),
                         )
                     )
                     continue
                 try:
                     extracted.extend(run_extractor_plugins(url, body, content_type, active_plugins))
-                except ExtractorPluginError:
+                except ExtractorPluginError as exc:
                     record_failure(url, resource.required)
                     scan_issues.append(
                         ScanIssue(
@@ -230,6 +252,8 @@ class PassiveScanner:
                             url=redact_url(url),
                             required=resource.required,
                             check_id="plugin:configured-extractors",
+                            detail=issue_detail(exc, check_id="plugin:configured-extractors"),
+                            captured_at=datetime.now(timezone.utc),
                         )
                     )
                     continue
