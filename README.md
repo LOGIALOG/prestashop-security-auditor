@@ -19,25 +19,78 @@
   <img alt="Apache License 2.0" src="https://img.shields.io/badge/license-Apache--2.0-0b6ffb">
 </p>
 
-Outil local d’audit passif et non destructif pour boutiques PrestaShop autorisées. Il n’effectue aucune exploitation, aucun POST, aucun brute force et aucun contournement de protection. L’interface et les services Docker sont publiés uniquement sur `127.0.0.1`.
+Outils local d’audit PrestaShop **passif, non destructif et prouvable** : observations publiques autorisées, preuves hashées, décision de policy explicite et rapports livrables. Tout tourne sur `127.0.0.1` ; l’outil ne réalise aucune exploitation, aucun POST, aucun brute force et aucun contournement de protection.
 
 > [!IMPORTANT]
 > Utilisez cet outil uniquement sur une boutique dont vous êtes propriétaire ou pour laquelle vous disposez d’une autorisation explicite et documentée. Un module détecté ou une version inconnue ne constitue jamais, à lui seul, une vulnérabilité confirmée.
 
-## Aperçu
+<p align="center">
+  <img src="docs/assets/dashboard-authorization.png" width="720" alt="Interface d’autorisation (données de démonstration fictives)">
+  <br>
+  <em>Capture de démonstration — données fictives (`demo.local`).</em>
+</p>
 
-| Dashboard d’autorisation | Rapport client autonome |
-| --- | --- |
-| ![Dashboard LOGIALOG](docs/assets/dashboard-authorization.png) | ![Rapport client LOGIALOG](docs/assets/client-report.png) |
+## Sommaire
 
-## Ce qui différencie l’outil
+- [Valeur](#valeur)
+- [Principes de sécurité](#principes-de-sécurité)
+- [Architecture](#architecture)
+- [Capacités](#capacités)
+- [Démarrage rapide](#démarrage-rapide)
+- [API locale](#api-locale)
+- [CLI](#cli)
+- [Documentation](#documentation)
+- [Feuille de route](#feuille-de-route)
+- [Licence et marque](#licence-et-marque)
 
-- **Preuve obligatoire** : chaque finding réel conserve l’URL, la date UTC, un extrait nettoyé, la méthode, la confiance et le SHA-256 de la réponse.
+## Valeur
+
+- **Preuve obligatoire** : chaque finding réel conserve URL, date UTC, extrait nettoyé, méthode, confiance et SHA-256.
 - **Incertitude explicite** : les statuts distinguent confirmation, version à vérifier, résidu d’asset, non-affecté et durcissement.
-- **Sécurité opérationnelle** : même domaine, GET uniquement, délai minimal, budget maximal de 20 requêtes et double confirmation opérateur.
-- **Workflow développeur** : exports JSON, SARIF 2.1.0, SBOM CycloneDX 1.6, CLI, policy packs et monitoring local.
-- **Livraison agence** : rapports white-label validés, bundles Ed25519, multistore isolé et historique append-only.
-- **Communauté encadrée** : SDK d’extracteurs borné, advisories révisés manuellement et fixtures sans boutique réelle.
+- **Sécurité opérationnelle** : même origine, `GET` uniquement, délai minimal, budget borné et autorisation explicite.
+- **Livrable agence** : exports JSON/SARIF, rapports white-label, bundles signés Ed25519, monitoring et multistore isolé.
+
+## Principes de sécurité
+
+- **NO EVIDENCE != PASS** — l’absence de preuve n’établit pas un état sûr.
+- **FAILED OBSERVATION != SAFE OBSERVATION** — un échec n’est pas un résultat négatif sûr.
+- **PARTIAL COVERAGE != COMPLETED AUDIT** — une couverture partielle ne satisfait pas une gate incomplète.
+- **UNKNOWN COVERAGE != PASS** — une couverture inconnue bloque `PASS`.
+- **EXTERNAL SOURCE != TRUSTED FINDING** — une donnée externe reste non fiable jusqu’à revue et signature.
+
+La couverture est `COMPLETED` ou `INCOMPLETE`, avec raisons structurées (`HTTP_STATUS`, `TRANSPORT_ERROR`, `EXTRACTOR_ERROR`, `CHECK_NOT_TESTED`, `BUDGET_EXHAUSTED`, `REDIRECT_LOOP`). Une couverture incomplète ne produit jamais `PASS` : la décision devient `UNKNOWN`.
+
+## Architecture
+
+```mermaid
+flowchart LR
+    T["Cible autorisée"] --> S["Scanner passif\nGET · même origine · budget borné"]
+    S --> E["Preuves structurées\nhash SHA-256 · extrait nettoyé"]
+    E --> P["Policy\nPASS · FAIL · UNKNOWN"]
+    P --> R["Rapports\nHTML · JSON · SARIF · bundle signé"]
+    S -.-> C["Couverture\nCOMPLETED / INCOMPLETE"]
+    E -.-> X["Redaction\nsecrets masqués"]
+```
+
+Scanner local borné, preuves nettoyées avant export, décision de policy séparée de la complétude, codes de sortie CLI stables pour l’automatisation.
+
+## Capacités
+
+| Domaine | Vérifie | Preuve | Limite |
+| --- | --- | --- | --- |
+| Couverture | observations obligatoires terminées | `COMPLETED`/`INCOMPLETE` + incidents | `PASS` exige une couverture complète |
+| Transport / redirections | statut, erreurs, chaînes et boucles | incidents structurés | aucune exploitation |
+| En-têtes de sécurité | CSP, HSTS, Permissions-Policy, X-Frame-Options, X-Content-Type-Options, Referrer-Policy | finding `HARDENING` + preuve d’absence | défense en profondeur |
+| Cookies | `Secure`, `HttpOnly`, `SameSite` | métadonnées | pas d’exploitabilité |
+| Fingerprint modules/versions | modules, thèmes, version cœur | preuves d’extraction | version serveur parfois inconnue |
+| Corrélation advisories | version vs plage affectée, snapshot signé | `CONFIRMED`/`NOT_AFFECTED`/`REQUIRES_ACCESS`/`ASSET_RESIDUE` | pas de revendication d’exploitation |
+| Inventaire source local | cœur, modules, Composer, overrides, mode dev, `install/` | composants + hash de preuve | lecture seule |
+| Évaluation advisory locale | version locale vs snapshot vérifié | `AFFECTED`/`NOT_AFFECTED`/`INDETERMINATE` | `AFFECTED` != exploitation |
+| Revue de patterns PHP | `eval`, process, `unserialize`, `base64_decode` | signal (règle, chemin, ligne, confiance) | signal de revue |
+| Monitoring | changements vs baseline réelle | résultat de monitoring | baseline incomplète ignorée |
+| Multistore | périmètres isolés séquentiels | audit portable par boutique | pas de fusion de preuves |
+| Exports & bundles | JSON/SARIF, bundle ZIP signé | artefacts vérifiables | clé privée hors dépôt |
+| Policy | seuils, statuts, confiance | `PASS`/`FAIL`/`UNKNOWN` | jamais `PASS` si incomplet |
 
 ## Démarrage rapide
 
@@ -47,56 +100,12 @@ cd prestashop-security-auditor
 docker compose up --build
 ```
 
-Ouvrir [http://127.0.0.1:5173](http://127.0.0.1:5173). L’API reste locale sur `http://127.0.0.1:8000`.
+Ouvrir [http://127.0.0.1:5173](http://127.0.0.1:5173) ; l’API reste locale sur `http://127.0.0.1:8000`. Prérequis : Docker Desktop/Compose, ou Python 3.13 et Node.js 22.
 
-## Documentation
+<details>
+<summary>Installation sans Docker, tests et laboratoire local</summary>
 
-| Besoin | Guide |
-| --- | --- |
-| Comprendre les formats exportés | [Contrat JSON et SARIF](docs/EXPORT_CONTRACT.md) |
-| Scanner un checkout local | [CLI et source scan](#cli-développeur) |
-| Corréler les versions locales | [Évaluation advisory hors ligne](docs/LOCAL_ASSESSMENT.md) |
-| Vérifier avant un audit | [Préflight opérationnel](docs/OPERATIONAL_PREFLIGHT.md) |
-| Réutiliser un positionnement précis | [Registre des arguments produit](docs/areas/POSITIONING_ARGUMENTS.md) |
-| Concevoir une validation scientifique | [Protocole du corpus](docs/VALIDATION_PROTOCOL.md) |
-| Créer un rapport agence | [Profils white-label](docs/REPORT_PROFILES.md) |
-| Signer une livraison | [Bundles de rapport](docs/REPORT_BUNDLES.md) |
-| Auditer plusieurs boutiques | [Mode multistore](docs/MULTISTORE.md) |
-| Ajouter un extracteur | [SDK d’extracteurs](docs/EXTRACTOR_SDK.md) |
-| Comprendre les décisions d’architecture | [Registre des décisions de sécurité](docs/SECURITY_ARCHITECTURE_DECISIONS.md) |
-| Contribuer sans données réelles | [Guide de contribution](CONTRIBUTING.md) |
-| Signaler une vulnérabilité | [Politique de sécurité](SECURITY.md) |
-
-## Modes de données
-
-- **État vide** : aucun domaine, score, finding, module, version ou historique au premier lancement.
-- **Mode démonstration** : données exclusivement fictives pour `demo.local`, avec watermark orange permanent dans l’interface et le rapport.
-- **Audit réel** : données issues uniquement des réponses collectées. Chaque finding réel exige une URL source, une date UTC, un hash SHA-256, un extrait nettoyé, une méthode d’extraction et un niveau de confiance.
-
-## Prérequis
-
-- Docker Desktop avec Compose, ou Python 3.13 et Node.js 22.
-- Une autorisation explicite du propriétaire de la boutique.
-
-## Lancement avec Docker
-
-Windows PowerShell et Linux :
-
-```sh
-docker compose up --build
-```
-
-Ouvrir `http://127.0.0.1:5173`. L’API est sur `http://127.0.0.1:8000`.
-
-Arrêt :
-
-```sh
-docker compose down
-```
-
-## Lancement sans Docker
-
-PowerShell :
+PowerShell :
 
 ```powershell
 py -3.13 -m venv .venv
@@ -105,15 +114,7 @@ pip install -r backend\requirements-dev.txt
 uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Dans un second terminal :
-
-```powershell
-cd frontend
-npm ci
-npm run dev
-```
-
-Linux :
+Linux :
 
 ```sh
 python3.13 -m venv .venv
@@ -122,163 +123,9 @@ pip install -r backend/requirements-dev.txt
 uvicorn backend.app.main:app --host 127.0.0.1 --port 8000
 ```
 
-Puis `cd frontend && npm ci && npm run dev`.
+Puis, dans un second terminal : `cd frontend && npm ci && npm run dev`.
 
-## Créer un audit et exporter le rapport
-
-Ouvrir l’interface, saisir le domaine autorisé, cocher la confirmation d’autorisation puis démarrer. Le scanner consulte seulement l’accueil, `robots.txt`, les pages publiques explicitement fournies à l’API et leurs assets CSS/JS du même domaine. Le rapport est disponible dans l’écran **Rapport**; utiliser la fonction d’impression du navigateur pour créer un PDF. Une copie HTML et l’historique SQLite restent dans `reports/`.
-
-Aucun domaine réel n’est préconfiguré. Toute donnée réelle doit être collectée lors d’un audit autorisé, après les deux confirmations opérateur.
-
-Les résultats sont aussi disponibles en JSON portable et en SARIF 2.1.0 :
-
-- `/api/audits/{id}/export.json`
-- `/api/audits/{id}/export.sarif`
-- `/api/demo/export.json` et `/api/demo/export.sarif` pour les données fictives clairement marquées
-
-L’export portable exclut le chemin local du rapport. Le SARIF conserve l’URL, la date, le hash de réponse, la confiance et la méthode de détection de chaque preuve. Les garanties de compatibilité sont décrites dans [docs/EXPORT_CONTRACT.md](docs/EXPORT_CONTRACT.md).
-
-Après un deuxième audit réel du même domaine, `/api/audits/{id}/comparison` retourne les findings ajoutés, résolus, modifiés ou inchangés ainsi que l’évolution du score. Les données de démonstration et les domaines différents sont systématiquement exclus.
-
-## CLI développeur
-
-Valider les advisories embarqués :
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.app.cli advisories validate
-```
-
-Après une modification revue des advisories, régénérer leur manifest SHA-256 avec `python -m backend.app.cli advisories manifest`. La validation CI vérifie ensuite les records et le manifest.
-
-Le snapshot publié est signé avec la clé Ed25519 LOGIALOG. Vérifier sa provenance avec :
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.app.cli advisories verify-signature --manifest advisories\snapshot-manifest.json --signature advisories\snapshot-manifest.sig.json --public-key keys\logialog-ed25519-public.pem
-```
-
-L’identifiant de la clé de production publiée est `4b563811547e5518`. La clé privée chiffrée reste hors du repository.
-
-Les imports de sources externes passent obligatoirement par une proposition locale `pending`; ils ne modifient jamais automatiquement la base approuvée. Voir [docs/ADVISORY_REVIEW.md](docs/ADVISORY_REVIEW.md).
-
-Exécuter un audit autorisé et produire un SARIF :
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.app.cli scan https://boutique.example --authorized --format sarif --output reports\audit.sarif
-```
-
-Exporter un audit déjà enregistré :
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.app.cli export AUDIT_ID --format json --output reports\audit.json
-```
-
-Générer une version white-label du rapport à partir d’un profil validé :
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.app.cli report render AUDIT_ID --profile docs\report-profile.example.json --output reports\client-report.html
-```
-
-Le nom, le titre, les couleurs, le contact et un logo bitmap intégré peuvent être personnalisés. La provenance et la version du moteur LOGIALOG restent immuables dans les métadonnées HTML. Voir [docs/REPORT_PROFILES.md](docs/REPORT_PROFILES.md).
-
-Valider puis lancer un périmètre multistore explicitement autorisé :
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.app.cli multistore validate --manifest multistore.local.json
-.\.venv\Scripts\python.exe -m backend.app.cli multistore scan --manifest multistore.local.json --output reports\multistore-audit.json
-```
-
-Chaque boutique produit son propre audit, ses propres preuves et son propre rapport. Les exécutions sont séquentielles, limitées à 20 requêtes par boutique et 100 au total. Voir [docs/MULTISTORE.md](docs/MULTISTORE.md).
-
-Créer puis vérifier un bundle de livraison signé :
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.app.cli bundle create AUDIT_ID --output reports\audit-bundle.zip --private-key C:\chemin\hors-projet\private.pem --profile docs\report-profile.example.json
-.\.venv\Scripts\python.exe -m backend.app.cli bundle verify --bundle reports\audit-bundle.zip --public-key C:\chemin\public.pem
-```
-
-Le ZIP contient le rapport, le JSON, le SARIF et le snapshot advisory, accompagnés d’un manifest de hashes signé Ed25519. Voir [docs/REPORT_BUNDLES.md](docs/REPORT_BUNDLES.md).
-
-Appliquer une policy sans modifier l’audit :
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.app.cli policy validate --policy policies\agency-release.json
-.\.venv\Scripts\python.exe -m backend.app.cli policy evaluate AUDIT_ID --policy policies\agency-release.json --output reports\policy-result.json
-```
-
-Une décision `FAIL` utilise l’exit code `10`. Les packs fournis couvrent une gate agence stricte et une gate de triage. Voir [docs/POLICY_PACKS.md](docs/POLICY_PACKS.md).
-
-Exécuter un contrôle planifiable qui reste silencieux sans changement :
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.app.cli monitor validate --config monitor.local.json
-.\.venv\Scripts\python.exe -m backend.app.cli monitor run --config monitor.local.json --output reports\monitor-result.json
-```
-
-La première exécution établit une baseline sans notification. Un changement configuré retourne l’exit code `11`; un état inchangé retourne `0`. Voir [docs/MONITORING.md](docs/MONITORING.md).
-
-Récupérer l’inventaire authentifié du companion optionnel :
-
-```powershell
-$env:LOGIALOG_COMPANION_SECRET = "<secret copié depuis le Back Office>"
-.\.venv\Scripts\python.exe -m backend.app.cli companion fetch --endpoint https://shop.example/module/logialogsecuritybridge/inventory --secret-env LOGIALOG_COMPANION_SECRET --authorized --output reports\companion-inventory.json
-```
-
-Le module ne retourne que la version PrestaShop, les modules actifs et les boutiques configurées. Voir [docs/COMPANION_MODULE.md](docs/COMPANION_MODULE.md).
-
-Tracer une revue dans le journal d’équipe local :
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.app.cli history add AUDIT_ID --actor alice --event reviewed --note "Evidence reviewed"
-.\.venv\Scripts\python.exe -m backend.app.cli history verify
-.\.venv\Scripts\python.exe -m backend.app.cli history list --audit-id AUDIT_ID --output reports\audit-history.json
-```
-
-Le journal append-only est chaîné par SHA-256. L’acteur est une attribution explicite, pas une identité cryptographiquement authentifiée. Voir [docs/TEAM_HISTORY.md](docs/TEAM_HISTORY.md).
-
-Exit codes stables : `0` succès sans alerte, `2` entrée ou autorisation invalide, `3` audit absent, `4` advisory invalide, `5` erreur d’exécution, `10` échec de policy/finding confirmé ou version locale affectée, `11` changement significatif détecté par le monitoring et `12` préflight local non prêt.
-
-Vérifier la préparation locale puis prévisualiser exactement le périmètre d’un audit sans accès réseau :
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.app.cli doctor --output reports\doctor.json
-.\.venv\Scripts\python.exe -m backend.app.cli plan https://boutique.example --authorized --max-requests 10 --delay 2 --public-page https://boutique.example/contact --output reports\scan-plan.json
-```
-
-Le plan refuse les pages d’un autre domaine et confirme GET-only, le délai et le budget avant toute requête. Voir [docs/OPERATIONAL_PREFLIGHT.md](docs/OPERATIONAL_PREFLIGHT.md).
-
-Inventorier un checkout PrestaShop local et produire un SBOM CycloneDX, sans réseau ni exécution du code analysé :
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.app.cli source scan C:\chemin\vers\prestashop --format cyclonedx --output reports\sbom.json
-```
-
-L’inventaire n’exporte pas le contenu des fichiers et n’invente jamais une version absente. Il signale également les overrides PHP, le mode développeur et la présence locale du répertoire `install`, sans lire ni exporter les paramètres de base de données.
-
-Corréler ensuite cet inventaire avec le snapshot advisory vérifié et produire une file de remédiation JSON, SARIF ou CycloneDX :
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.app.cli source assess C:\chemin\vers\prestashop --format sarif --output reports\local-assessment.sarif --fail-on-affected
-```
-
-`AFFECTED` signifie que la version locale prouvée tombe dans une plage publiée; cela ne prouve jamais une exploitation. Les versions inconnues restent `INDETERMINATE` et les releases de sécurité du core restent des recommandations de maintenance. Voir [docs/LOCAL_ASSESSMENT.md](docs/LOCAL_ASSESSMENT.md).
-
-Repérer localement des patterns PHP nécessitant une revue manuelle :
-
-```powershell
-.\.venv\Scripts\python.exe -m backend.app.cli source review C:\chemin\vers\prestashop --output reports\code-review.json
-```
-
-La sortie contient uniquement la règle, le chemin, la ligne et la confiance. Elle n’exporte pas le code source et ne transforme jamais un signal en vulnérabilité confirmée.
-
-La CI GitHub exécute uniquement la validation des advisories, les tests, le build et un smoke test Docker Compose lié à `127.0.0.1`. Elle ne lance aucun scan externe. L’intégration SARIF pour un environnement privé et explicitement autorisé est documentée dans [docs/GITHUB_ACTIONS.md](docs/GITHUB_ACTIONS.md). Le contrat et les règles de migration des données sont définis dans [docs/ADVISORY_SCHEMA.md](docs/ADVISORY_SCHEMA.md).
-
-Voir [ROADMAP.md](ROADMAP.md) et [docs/COMPETITIVE_ANALYSIS.md](docs/COMPETITIVE_ANALYSIS.md) pour la stratégie produit et l’étude des outils existants.
-
-## Calcul du score
-
-Le score n’existe qu’après la fin d’un audit ou dans le mode démo explicitement marqué. Formule : départ à 100, puis `CONFIRMED` retire 25 points pour Critical, 15 pour High, 8 pour Medium et 3 pour Low; `LIKELY` retire 5 points; `REQUIRES_ACCESS` retire 2 points; `HARDENING` retire 1 point. `ASSET_RESIDUE` et `NOT_AFFECTED` ne retirent aucun point. Le minimum est 0. Chaque facteur est affiché par le bouton **Comprendre le calcul du score**. Aucune comparaison historique n’est présentée sans audit précédent réellement enregistré.
-
-## Tests hors ligne
+Tests hors ligne :
 
 ```powershell
 pytest tests
@@ -289,28 +136,80 @@ npx playwright install chromium
 npm run test:e2e
 ```
 
-La suite navigateur applique les règles WCAG 2 A/AA et WCAG 2.1 A/AA, vérifie le focus clavier, le RTL arabe, le layout mobile et l’absence de débordement horizontal. Sous Linux, les mêmes commandes s’appliquent ; la CI installe Chromium avec ses dépendances système.
+La suite navigateur applique WCAG 2 A/AA et WCAG 2.1 A/AA (focus clavier, RTL arabe, mobile). Les tests scanner utilisent des transports simulés : aucun scan externe.
 
-## Laboratoire local (désactivé par défaut)
-
-Le lab utilise uniquement des données fictives, n’accepte aucune cible et ne contient aucun payload réutilisable.
+Laboratoire local (désactivé par défaut, données fictives uniquement) :
 
 ```sh
 docker compose --profile lab up --build lab
 ```
 
-Ouvrir `http://127.0.0.1:8010`. Arrêt complet :
+Ouvrir `http://127.0.0.1:8010`, arrêt avec `docker compose --profile lab down`.
 
-```sh
-docker compose --profile lab down
+</details>
+
+## API locale
+
+- `GET /api/health` — état du service.
+- `GET /api/demo`, `GET /api/demo/export.json`, `GET /api/demo/export.sarif` — données **fictives** clairement marquées.
+- `GET /api/audits/{id}`, `GET /api/audits/{id}/report` — audit enregistré et rapport HTML.
+- `GET /api/audits/{id}/export.json`, `GET /api/audits/{id}/export.sarif` — exports portables (chemin local du rapport exclu).
+- `GET /api/audits/{id}/comparison` — comparaison avec l’audit réel précédent du même domaine (démo et domaines différents exclus).
+
+## CLI
+
+```powershell
+# Audit autorisé vers SARIF
+python -m backend.app.cli scan https://boutique.example --authorized --format sarif --output reports\audit.sarif
+
+# Préflight sans réseau
+python -m backend.app.cli doctor
+python -m backend.app.cli plan https://boutique.example --authorized --max-requests 10 --delay 2 --public-page https://boutique.example/contact
 ```
 
-Sans Docker : `uvicorn lab.app:app --host 127.0.0.1 --port 8010`, puis arrêter avec `Ctrl+C`.
+Codes de sortie : `0` succès, `2` entrée/autorisation invalide, `3` audit absent, `4` advisory invalide, `5` erreur d’exécution / couverture incomplète, `10` échec policy ou finding confirmé, `11` changement significatif (monitoring), `12` préflight non prêt.
+
+Commandes avancées (rapports white-label, bundles signés, multistore, companion, historique, inventory source, évaluation advisory locale, revue PHP, policy, monitoring) : voir la [documentation](#documentation).
+
+## Documentation
+
+| Besoin | Guide |
+| --- | --- |
+| Formats exportés | [Contrat JSON et SARIF](docs/EXPORT_CONTRACT.md) |
+| Décisions d’architecture | [Registre des décisions de sécurité](docs/SECURITY_ARCHITECTURE_DECISIONS.md) |
+| Préflight opérationnel | [Préflight](docs/OPERATIONAL_PREFLIGHT.md) |
+| Policy packs | [Policy packs](docs/POLICY_PACKS.md) |
+| Monitoring | [Monitoring](docs/MONITORING.md) |
+| Multistore | [Mode multistore](docs/MULTISTORE.md) |
+| Rapports white-label | [Profils de rapport](docs/REPORT_PROFILES.md) |
+| Bundles signés | [Bundles de rapport](docs/REPORT_BUNDLES.md) |
+| Évaluation advisory locale | [Assessments locaux](docs/LOCAL_ASSESSMENT.md) |
+| SDK d’extracteurs | [SDK d’extracteurs](docs/EXTRACTOR_SDK.md) |
+| Advisories | [Revue](docs/ADVISORY_REVIEW.md) · [Schéma](docs/ADVISORY_SCHEMA.md) |
+| CI et SARIF | [GitHub Actions](docs/GITHUB_ACTIONS.md) |
+| Companion optionnel | [Module companion](docs/COMPANION_MODULE.md) |
+| Historique d’équipe | [Historique](docs/TEAM_HISTORY.md) |
+| Validation scientifique | [Protocole du corpus](docs/VALIDATION_PROTOCOL.md) |
+| Contribuer sans données réelles | [Contribution](CONTRIBUTING.md) |
+| Signaler une vulnérabilité | [Politique de sécurité](SECURITY.md) |
+
+## Feuille de route
+
+- **Disponible** : scan passif, preuves hashées, policy `PASS`/`FAIL`/`UNKNOWN`, exports JSON/SARIF, rapports white-label, bundles signés, monitoring, multistore, inventaire source local, évaluation advisory locale, SDK d’extracteurs borné.
+- **En cours / à venir** : durcissement continu des preuves, clarté des contrats publics, gouvernance de validation.
+- **Direction** : enrichissement du post-scan local et des contrôles d’environnement, sans action intrusive.
+
+Voir [ROADMAP.md](ROADMAP.md). Un `CHANGELOG.md` public est en préparation ; en attendant, voir [notes de version v1.0.0](docs/RELEASE_NOTES_v1.0.0.md).
+
+<details>
+<summary>Formule du score et statuts</summary>
+
+Score : départ à 100 ; `CONFIRMED` retire 25 (Critical), 15 (High), 8 (Medium), 3 (Low) ; `LIKELY` 5 ; `REQUIRES_ACCESS` 2 ; `HARDENING` 1 ; `ASSET_RESIDUE` et `NOT_AFFECTED` 0 ; minimum 0.
+
+Statuts : `CONFIRMED` exige une version fiable dans une plage affectée documentée. `LIKELY` exige plusieurs preuves concordantes. `REQUIRES_ACCESS` indique une version réelle inconnue. `ASSET_RESIDUE` est une trace limitée à un bundle. `NOT_AFFECTED` exige une version corrigée confirmée. `HARDENING` décrit une défense manquante sans exploitation démontrée.
+
+</details>
 
 ## Licence et marque
 
-Le code et la documentation sont distribués sous [Apache License 2.0](LICENSE). Consultez également [NOTICE](NOTICE). Le nom et le logo LOGIALOG restent des marques de LOGIALOG SARL AU; la licence du code ne concède aucun droit de marque au-delà de l’attribution nécessaire.
-
-## Statuts
-
-`CONFIRMED` exige une version fiable située dans une plage affectée documentée. `LIKELY` exige plusieurs preuves concordantes. `REQUIRES_ACCESS` indique une version réelle inconnue. `ASSET_RESIDUE` est une trace limitée à un bundle. `NOT_AFFECTED` exige une version corrigée confirmée. `HARDENING` décrit une défense manquante sans exploitation démontrée.
+Code et documentation sous [Apache License 2.0](LICENSE) ; voir aussi [NOTICE](NOTICE). Le nom et le logo LOGIALOG restent des marques de LOGIALOG SARL AU ; la licence du code ne concède aucun droit de marque au-delà de l’attribution nécessaire.

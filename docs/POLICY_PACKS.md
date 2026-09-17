@@ -21,6 +21,14 @@ Both reject demo data by default.
 
 Unknown fields, invalid statuses, duplicate forbidden statuses and invalid limits are rejected.
 
+## Validate
+
+```powershell
+.\.venv\Scripts\python.exe -m backend.app.cli policy validate --policy policies\agency-release.json
+```
+
+Validation checks the pack schema and rejects unknown fields, invalid statuses, duplicate forbidden statuses and invalid limits. It sends no request and evaluates no audit.
+
 ## Evaluate
 
 ```powershell
