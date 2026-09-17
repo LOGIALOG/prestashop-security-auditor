@@ -12,6 +12,20 @@
 
 Pass `--advisories C:\path\to\snapshot` to use another reviewed snapshot. The directory must contain valid advisory records and a matching `snapshot-manifest.json`; modified, missing or extra records are rejected.
 
+## Local source inventory and code review
+
+Two read-only local commands support assessment without network access or code execution:
+
+```powershell
+# Deterministic source inventory (core, modules, Composer)
+.\.venv\Scripts\python.exe -m backend.app.cli source scan C:\path\to\prestashop --format cyclonedx --output reports\sbom.json
+
+# PHP patterns requiring manual review (rule, path, line, confidence)
+.\.venv\Scripts\python.exe -m backend.app.cli source review C:\path\to\prestashop --output reports\code-review.json
+```
+
+`source scan` exports no file contents and never invents a missing version. `source review` returns bounded signals only and never turns a signal into a confirmed vulnerability.
+
 ## State semantics
 
 - `AFFECTED`: the detected module version falls within the published affected range and its metadata file has recorded SHA-256 evidence. This is a remediation signal, not proof that the shop was exploited.
