@@ -8,6 +8,8 @@ Top-level fields are `format`, `format_version`, `demo` and `audit`. The audit p
 
 The audit payload exposes `scan_completeness` as `COMPLETED` or `INCOMPLETE` and records bounded `scan_issues`. Each issue identifies whether the failed resource or check was required. Optional `detail` and `captured_at` fields may accompany an issue with bounded, redacted failure context; they are additive, carry no decision authority, and do not change coverage semantics. HTTP failures on discovered optional assets remain visible without making mandatory coverage incomplete; failures on the root, explicitly requested public pages, required extractors or required checks make the audit incomplete. Consumers must not convert an incomplete audit into a successful policy decision, even when its findings list is empty.
 
+The audit payload may additionally expose `advisory_snapshot_sha256` and `advisory_snapshot_date`, and advisory-derived findings may expose `advisory_snapshot_sha256`, binding correlation to the verified signed advisory snapshot. These are additive optional properties: they do not change finding status, coverage or policy decisions.
+
 Evidence provenance fields (`url`, `captured_at`, `evidence_type`, `excerpt`, `response_sha256`, `confidence` and `detection_method`) will not be removed or change meaning within version 1.
 
 ## SARIF

@@ -1,13 +1,12 @@
 from __future__ import annotations
 
-import hashlib
 from pathlib import Path
 from typing import Literal
 
 from packaging.version import InvalidVersion, Version
 from pydantic import BaseModel, Field
 
-from .advisories import CoreSecurityRelease, ModuleAdvisory, load_advisories, validate_advisory_manifest
+from .advisories import CoreSecurityRelease, ModuleAdvisory, advisory_snapshot_identity, load_advisories
 from .source_scan import LocalComponent, LocalSourceInventory, component_bom_ref, render_cyclonedx, scan_local_source
 
 
@@ -132,9 +131,9 @@ def _core_maintenance(component: LocalComponent | None, advisory: CoreSecurityRe
     )
 
 
-def assess_local_source(source: Path, advisory_directory: Path | None = None) -> LocalSourceAssessment:
+def assess_local_source(source: Path, advisory_directory: Path | None = None, public_key: Path | None = None) -> LocalSourceAssessment:
     inventory = scan_local_source(source)
-    manifest_path = validate_advisory_manifest(advisory_directory)
+    identity = advisory_snapshot_identity(advisory_directory, public_key)
     documents = load_advisories(advisory_directory)
     modules = {component.name.casefold(): component for component in inventory.components if component.kind == "prestashop-module"}
     core = next((component for component in inventory.components if component.kind == "prestashop-core"), None)
@@ -152,7 +151,7 @@ def assess_local_source(source: Path, advisory_directory: Path | None = None) ->
     warnings.extend(match.interpretation for match in matches if match.status == "INDETERMINATE")
     return LocalSourceAssessment(
         inventory=inventory,
-        advisory_snapshot_sha256=hashlib.sha256(manifest_path.read_bytes()).hexdigest(),
+        advisory_snapshot_sha256=identity.snapshot_sha256,
         advisory_matches=matches,
         core_maintenance=maintenance,
         warnings=warnings,

@@ -186,6 +186,7 @@ def build_parser() -> argparse.ArgumentParser:
     source_assess = source_commands.add_parser("assess", help="Corréler les versions locales avec le snapshot advisory vérifié")
     source_assess.add_argument("path", type=Path)
     source_assess.add_argument("--advisories", type=Path)
+    source_assess.add_argument("--public-key", type=Path)
     source_assess.add_argument("--format", choices=("json", "sarif", "cyclonedx"), default="json")
     source_assess.add_argument("--output", type=Path)
     source_assess.add_argument("--fail-on-affected", action="store_true")
@@ -404,7 +405,7 @@ def main(argv: Sequence[str] | None = None) -> int:
                 _emit(review_local_php(args.path).model_dump(mode="json"), args.output)
                 return EXIT_OK
             if args.source_command == "assess":
-                assessment = assess_local_source(args.path, args.advisories)
+                assessment = assess_local_source(args.path, args.advisories, args.public_key)
                 if args.format == "sarif":
                     payload = render_assessment_sarif(assessment)
                 elif args.format == "cyclonedx":

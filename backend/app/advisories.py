@@ -8,12 +8,14 @@ from pathlib import Path
 from typing import Literal
 
 from packaging.version import Version
-from pydantic import BaseModel, ConfigDict, HttpUrl, TypeAdapter, field_validator
+from pydantic import BaseModel, ConfigDict, Field, HttpUrl, TypeAdapter, field_validator
 
 from .extractors import Extracted
+from .manifest_signing import verify_manifest_signature
 from .models import Finding, Status
 
 ROOT = Path(__file__).resolve().parents[2]
+DEFAULT_PUBLIC_KEY = ROOT / "keys" / "logialog-ed25519-public.pem"
 
 
 class ModuleAdvisory(BaseModel):
@@ -130,7 +132,35 @@ def load_advisories(directory: Path | None = None) -> list[dict]:
     return [json.loads(path.read_text(encoding="utf-8")) for path in paths]
 
 
-def correlate(extracted: list[Extracted]) -> list[Finding]:
+class AdvisorySnapshotIdentity(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    snapshot_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
+    snapshot_date: date
+    record_count: int = Field(ge=0)
+    key_id: str
+
+
+def advisory_snapshot_identity(
+    directory: Path | None = None,
+    public_key: Path | None = None,
+) -> AdvisorySnapshotIdentity:
+    base = directory or ROOT / "advisories"
+    manifest_path = validate_advisory_manifest(base)
+    signature_path = base / SIGNATURE_NAME
+    if not signature_path.is_file():
+        raise ValueError(f"Signature advisory absente: {signature_path}")
+    envelope = verify_manifest_signature(manifest_path, signature_path, public_key or DEFAULT_PUBLIC_KEY)
+    manifest = build_advisory_manifest(base)
+    return AdvisorySnapshotIdentity(
+        snapshot_sha256=envelope.manifest_sha256,
+        snapshot_date=date.fromisoformat(manifest["snapshot_date"]),
+        record_count=manifest["record_count"],
+        key_id=envelope.key_id,
+    )
+
+
+def correlate(extracted: list[Extracted], snapshot_sha256: str | None = None) -> list[Finding]:
     advisories = {item["module"]: item for item in load_advisories() if item.get("module")}
     grouped: dict[str, list[Extracted]] = {}
     for item in extracted:
@@ -157,5 +187,8 @@ def correlate(extracted: list[Extracted]) -> list[Finding]:
         elif name == "prestashop" and versions:
             findings.append(Finding(subject=name, status=Status.REQUIRES_ACCESS, version=versions[0], interpretation=f"PrestaShop {versions[0]} probable — confiance moyenne — confirmation par accès serveur ou Back Office requise.", business_risk="La maintenance de sécurité du cœur doit être confirmée.", remediation="Comparer la version réelle à la dernière version de sécurité compatible.", access_required="Accès serveur ou Back Office", evidence=evidence))
         else:
-            findings.append(Finding(subject=name, status=Status.REQUIRES_ACCESS, interpretation="Version ancienne ou provenance non vérifiée — revue manuelle du code requise — aucune vulnérabilité précise confirmée par cet outil.", business_risk="Risque indéterminé sans revue de provenance et de version.", remediation="Vérifier la provenance, la version et le code du module.", access_required="Accès serveur ou Back Office", evidence=evidence))
+                findings.append(Finding(subject=name, status=Status.REQUIRES_ACCESS, interpretation="Version ancienne ou provenance non vérifiée — revue manuelle du code requise — aucune vulnérabilité précise confirmée par cet outil.", business_risk="Risque indéterminé sans revue de provenance et de version.", remediation="Vérifier la provenance, la version et le code du module.", access_required="Accès serveur ou Back Office", evidence=evidence))
+    if snapshot_sha256 is not None:
+        for finding in findings:
+            finding.advisory_snapshot_sha256 = snapshot_sha256
     return findings

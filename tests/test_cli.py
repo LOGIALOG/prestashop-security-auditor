@@ -5,9 +5,12 @@ from types import SimpleNamespace
 
 import httpx
 import pytest
+from cryptography.hazmat.primitives import serialization
+from cryptography.hazmat.primitives.asymmetric.ed25519 import Ed25519PrivateKey
 
 from backend.app import cli, database
 from backend.app.advisories import build_advisory_manifest
+from backend.app.manifest_signing import sign_manifest
 from backend.app.models import AuditResult, ScanIssue, Status
 from backend.app.multistore import MultistoreAudit, MultistoreManifest, ShopAudit
 from backend.app.multistore import run_multistore as real_run_multistore
@@ -727,8 +730,30 @@ def test_source_assess_command_exports_sarif_and_fails_on_affected(tmp_path):
     (module / "config.xml").write_text("<module><version><![CDATA[3.3.8]]></version></module>", encoding="utf-8")
     source = Path(__file__).parents[1] / "advisories" / "ybc_blog.json"
     (advisories / "ybc_blog.json").write_bytes(source.read_bytes())
-    (advisories / "snapshot-manifest.json").write_text(
+    manifest_path = advisories / "snapshot-manifest.json"
+    manifest_path.write_text(
         json.dumps(build_advisory_manifest(advisories), ensure_ascii=False, indent=2) + "\n",
+        encoding="utf-8",
+    )
+    private_key = Ed25519PrivateKey.generate()
+    private_path = tmp_path / "snapshot-private.pem"
+    private_path.write_bytes(
+        private_key.private_bytes(
+            serialization.Encoding.PEM,
+            serialization.PrivateFormat.PKCS8,
+            serialization.NoEncryption(),
+        )
+    )
+    public_path = tmp_path / "snapshot-public.pem"
+    public_path.write_bytes(
+        private_key.public_key().public_bytes(
+            serialization.Encoding.PEM,
+            serialization.PublicFormat.SubjectPublicKeyInfo,
+        )
+    )
+    envelope = sign_manifest(manifest_path, private_path)
+    (advisories / "snapshot-manifest.sig.json").write_text(
+        json.dumps(envelope.model_dump(mode="json"), ensure_ascii=False, indent=2) + "\n",
         encoding="utf-8",
     )
     destination = tmp_path / "assessment.sarif"
@@ -740,6 +765,8 @@ def test_source_assess_command_exports_sarif_and_fails_on_affected(tmp_path):
             str(tmp_path / "shop"),
             "--advisories",
             str(advisories),
+            "--public-key",
+            str(public_path),
             "--format",
             "sarif",
             "--output",

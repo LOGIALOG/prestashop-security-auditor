@@ -861,3 +861,27 @@ async def test_plugin_extractor_error_captures_detail_and_check_id(monkeypatch):
     assert issue.detail
     assert "RuntimeError" in issue.detail
     assert_incomplete_unknown(result)
+
+
+@pytest.mark.asyncio
+async def test_complete_scan_binds_advisory_snapshot_identity(monkeypatch):
+    from backend.app.advisories import advisory_snapshot_identity
+
+    def handler(_request):
+        return httpx.Response(
+            200,
+            text='<script src="/modules/ybc_blog/views/js/tracking.js"></script>',
+            headers={"content-type": "text/html"},
+        )
+
+    result = await run_synthetic(handler, monkeypatch, max_requests=2)
+    identity = advisory_snapshot_identity()
+
+    assert result.advisory_snapshot_sha256 == identity.snapshot_sha256
+    assert result.advisory_snapshot_date == identity.snapshot_date
+    advisory_findings = [finding for finding in result.findings if finding.source]
+    assert advisory_findings
+    assert all(
+        finding.advisory_snapshot_sha256 == identity.snapshot_sha256
+        for finding in advisory_findings
+    )
