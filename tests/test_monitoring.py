@@ -1,3 +1,4 @@
+import hashlib
 import json
 import sqlite3
 from datetime import datetime,timedelta,timezone
@@ -152,7 +153,7 @@ def test_previous_audit_skips_legacy_incomplete_without_mutating_row(monkeypatch
     legacy.pop("scan_issues")
     serialized=json.dumps(legacy,sort_keys=True)
     with sqlite3.connect(db_path) as db:
-        db.execute("INSERT INTO audits VALUES (?,?,?,?)",("legacy","shop.test",NOW.isoformat(),serialized))
+        db.execute("INSERT INTO audits (id, domain, created_at, payload) VALUES (?,?,?,?)",("legacy","shop.test",NOW.isoformat(),serialized))
 
     selected=database.get_previous_real_audit(audit("current",completed_at=NOW+timedelta(minutes=1)))
 
@@ -172,7 +173,7 @@ def test_previous_audit_reaches_completed_past_newer_legacy_without_mutating_row
     legacy.pop("scan_issues")
     serialized=json.dumps(legacy,sort_keys=True)
     with sqlite3.connect(db_path) as db:
-        db.execute("INSERT INTO audits VALUES (?,?,?,?)",("legacy","shop.test",(NOW+timedelta(minutes=1)).isoformat(),serialized))
+        db.execute("INSERT INTO audits (id, domain, created_at, payload) VALUES (?,?,?,?)",("legacy","shop.test",(NOW+timedelta(minutes=1)).isoformat(),serialized))
 
     legacy_b=database.get_audit("legacy")
     selected=database.get_previous_real_audit(audit("current",completed_at=NOW+timedelta(minutes=2)))
@@ -228,7 +229,7 @@ def insert_invalid_row(db_path,audit_result:AuditResult,completed_at:datetime)->
     invalid.pop("scan_issues")
     serialized=json.dumps(invalid,sort_keys=True)
     with sqlite3.connect(db_path) as db:
-        db.execute("INSERT INTO audits VALUES (?,?,?,?)",(invalid["id"],invalid["domain"],invalid["completed_at"],serialized))
+        db.execute("INSERT INTO audits (id, domain, created_at, payload) VALUES (?,?,?,?)",(invalid["id"],invalid["domain"],invalid["completed_at"],serialized))
     return serialized
 
 
@@ -252,3 +253,166 @@ def test_previous_audit_returns_none_when_only_schema_invalid_rows(monkeypatch,t
     insert_invalid_row(db_path,audit("invalid",completed_at=NOW),NOW)
 
     assert database.get_previous_real_audit(audit("current",completed_at=NOW+timedelta(minutes=1))) is None
+
+
+def insert_raw_row(db_path, row_id, domain, created_at, payload, payload_sha256=None):
+    with sqlite3.connect(db_path) as db:
+        db.execute(
+            "INSERT INTO audits (id, domain, created_at, payload, payload_sha256) VALUES (?,?,?,?,?)",
+            (row_id, domain, created_at, payload, payload_sha256),
+        )
+
+
+def test_fresh_schema_reaches_user_version_3(monkeypatch, tmp_path):
+    db_path = tmp_path / "fresh.sqlite3"
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+
+    database.init_db()
+
+    with sqlite3.connect(db_path) as db:
+        version = db.execute("PRAGMA user_version").fetchone()[0]
+        columns = {row[1] for row in db.execute("PRAGMA table_info(audits)").fetchall()}
+    assert version == 3
+    assert "payload_sha256" in columns
+
+
+def test_v2_database_migrates_to_v3_preserving_row(monkeypatch, tmp_path):
+    db_path = tmp_path / "v2.sqlite3"
+    payload = audit("legacy", completed_at=NOW).model_dump_json()
+    with sqlite3.connect(db_path) as db:
+        db.execute("CREATE TABLE audits (id TEXT PRIMARY KEY, domain TEXT NOT NULL, created_at TEXT NOT NULL, payload TEXT NOT NULL)")
+        db.execute("CREATE TABLE audit_events (id INTEGER PRIMARY KEY AUTOINCREMENT, audit_id TEXT NOT NULL, domain TEXT NOT NULL, event_type TEXT NOT NULL, actor TEXT NOT NULL, created_at TEXT NOT NULL, details TEXT NOT NULL, previous_hash TEXT NOT NULL, event_hash TEXT NOT NULL UNIQUE)")
+        db.execute("PRAGMA user_version = 2")
+        db.execute("INSERT INTO audits VALUES (?,?,?,?)", ("legacy", "shop.test", NOW.isoformat(), payload))
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+
+    database.init_db()
+
+    with sqlite3.connect(db_path) as db:
+        version = db.execute("PRAGMA user_version").fetchone()[0]
+        row = db.execute("SELECT id, domain, created_at, payload, payload_sha256 FROM audits WHERE id='legacy'").fetchone()
+    assert version == 3
+    assert row[0] == "legacy"
+    assert row[1] == "shop.test"
+    assert row[3] == payload
+    assert row[4] is None
+
+
+def test_init_db_is_idempotent(monkeypatch, tmp_path):
+    db_path = tmp_path / "idempotent.sqlite3"
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+
+    for _ in range(3):
+        database.init_db()
+
+    with sqlite3.connect(db_path) as db:
+        columns = [row[1] for row in db.execute("PRAGMA table_info(audits)").fetchall()]
+        version = db.execute("PRAGMA user_version").fetchone()[0]
+    assert columns.count("payload_sha256") == 1
+    assert version == 3
+
+
+def test_save_audit_stores_payload_digest_of_exact_text(monkeypatch, tmp_path):
+    db_path = tmp_path / "save.sqlite3"
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+
+    database.save_audit(audit("completed", completed_at=NOW))
+
+    with sqlite3.connect(db_path) as db:
+        payload, digest = db.execute("SELECT payload, payload_sha256 FROM audits WHERE id='completed'").fetchone()
+    assert digest == hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def test_previous_audit_verifies_bound_payload_digest(monkeypatch, tmp_path):
+    monkeypatch.setattr(database, "DB_PATH", tmp_path / "verified.sqlite3")
+    database.save_audit(audit("completed", completed_at=NOW))
+
+    selected = database.get_previous_real_audit(audit("current", completed_at=NOW + timedelta(minutes=1)))
+
+    assert selected is not None
+    assert selected.id == "completed"
+    assert selected.scan_completeness == "COMPLETED"
+
+
+def test_previous_audit_rejects_mutated_payload(monkeypatch, tmp_path):
+    db_path = tmp_path / "mutated.sqlite3"
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+    database.save_audit(audit("completed", completed_at=NOW))
+    with sqlite3.connect(db_path) as db:
+        payload, _digest = db.execute("SELECT payload, payload_sha256 FROM audits WHERE id='completed'").fetchone()
+        db.execute("UPDATE audits SET payload=? WHERE id='completed'", (payload.replace("shop.test", "evil.test"),))
+
+    with pytest.raises(ValueError):
+        database.get_previous_real_audit(audit("current", completed_at=NOW + timedelta(minutes=1)))
+
+
+def test_previous_audit_rejects_malformed_payload_digest(monkeypatch, tmp_path):
+    db_path = tmp_path / "malformed.sqlite3"
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+    database.save_audit(audit("completed", completed_at=NOW))
+    with sqlite3.connect(db_path) as db:
+        db.execute("UPDATE audits SET payload_sha256='nothex' WHERE id='completed'")
+
+    with pytest.raises(ValueError):
+        database.get_previous_real_audit(audit("current", completed_at=NOW + timedelta(minutes=1)))
+
+
+def test_previous_audit_fails_closed_for_legacy_completed_without_digest(monkeypatch, tmp_path):
+    db_path = tmp_path / "legacy-completed.sqlite3"
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+    database.init_db()
+    insert_raw_row(db_path, "legacy", "shop.test", NOW.isoformat(), audit("legacy", completed_at=NOW).model_dump_json())
+
+    with pytest.raises(ValueError):
+        database.get_previous_real_audit(audit("current", completed_at=NOW + timedelta(minutes=1)))
+
+
+def test_previous_audit_legacy_completed_does_not_fall_back_to_older_hashed(monkeypatch, tmp_path):
+    db_path = tmp_path / "no-fallback.sqlite3"
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+    database.save_audit(audit("older", completed_at=NOW))
+    database.init_db()
+    insert_raw_row(
+        db_path,
+        "legacy",
+        "shop.test",
+        (NOW + timedelta(minutes=1)).isoformat(),
+        audit("legacy", completed_at=NOW + timedelta(minutes=1)).model_dump_json(),
+    )
+
+    with pytest.raises(ValueError):
+        database.get_previous_real_audit(audit("current", completed_at=NOW + timedelta(minutes=2)))
+
+
+def test_previous_audit_rejects_row_id_mismatch(monkeypatch, tmp_path):
+    db_path = tmp_path / "id-mismatch.sqlite3"
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+    database.save_audit(audit("completed", completed_at=NOW))
+    with sqlite3.connect(db_path) as db:
+        db.execute("UPDATE audits SET id='other' WHERE id='completed'")
+
+    with pytest.raises(ValueError):
+        database.get_previous_real_audit(audit("current", completed_at=NOW + timedelta(minutes=1)))
+
+
+def test_previous_audit_rejects_row_domain_mismatch(monkeypatch, tmp_path):
+    db_path = tmp_path / "domain-mismatch.sqlite3"
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+    other = audit("completed", completed_at=NOW).model_copy(update={"domain": "other.test"})
+    payload = other.model_dump_json()
+    database.init_db()
+    insert_raw_row(db_path, "completed", "shop.test", NOW.isoformat(), payload, hashlib.sha256(payload.encode("utf-8")).hexdigest())
+
+    with pytest.raises(ValueError):
+        database.get_previous_real_audit(audit("current", completed_at=NOW + timedelta(minutes=1)))
+
+
+def test_previous_audit_rejects_row_created_at_mismatch(monkeypatch, tmp_path):
+    db_path = tmp_path / "created-mismatch.sqlite3"
+    monkeypatch.setattr(database, "DB_PATH", db_path)
+    database.save_audit(audit("completed", completed_at=NOW))
+    with sqlite3.connect(db_path) as db:
+        db.execute("UPDATE audits SET created_at=? WHERE id='completed'", ((NOW + timedelta(seconds=30)).isoformat(),))
+
+    with pytest.raises(ValueError):
+        database.get_previous_real_audit(audit("current", completed_at=NOW + timedelta(minutes=1)))

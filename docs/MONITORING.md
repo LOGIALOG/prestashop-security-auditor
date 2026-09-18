@@ -17,6 +17,16 @@ Copy [monitor.example.json](monitor.example.json) to the Git-ignored `monitor.lo
 
 Meaningful changes can include new findings with selected statuses, resolved findings, status/version changes and a score decrease above the configured threshold. Hardening-only noise can be excluded by leaving `HARDENING` out of `notify_on_added_statuses`.
 
+## Baseline payload integrity
+
+New audits are recorded with a SHA-256 digest of the exact stored `audits.payload` text. When a previous completed real audit is selected as the monitoring baseline, its stored payload is hashed and compared to that digest (and the row identity is checked against the payload) before the audit is trusted for comparison.
+
+- A digest mismatch or a malformed digest fails closed; monitoring does not fall back to an older baseline or report a quiet `BASELINE`.
+- Completed real baselines recorded before this binding have no digest. Their historical integrity cannot be proven, so no hash is backfilled and they are not trusted as baselines; monitoring fails closed instead of silently treating them as a first run.
+- Incomplete, demo and schema-invalid records remain non-baselines as before.
+
+The adjacent SHA-256 detects integrity mismatch or corruption where the stored payload no longer matches its recorded digest. It is not a signature and does not protect against an actor able to rewrite both the payload and its digest in the same database.
+
 ## Validate without network access
 
 ```powershell

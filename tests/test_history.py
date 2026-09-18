@@ -26,7 +26,7 @@ def test_audit_and_review_events_form_a_valid_append_only_chain(monkeypatch,tmp_
     assert events[1]["previous_hash"]==events[0]["event_hash"]
     assert database.verify_history()==3
     with sqlite3.connect(database.DB_PATH) as connection:
-        assert connection.execute("PRAGMA user_version").fetchone()[0]==2
+        assert connection.execute("PRAGMA user_version").fetchone()[0]==3
 
 
 def test_history_verification_detects_database_tampering(monkeypatch,tmp_path):

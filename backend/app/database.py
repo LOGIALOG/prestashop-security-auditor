@@ -9,6 +9,11 @@ from .models import AuditResult
 
 ROOT = Path(__file__).resolve().parents[2]
 DB_PATH = ROOT / "reports" / "audits.sqlite3"
+PAYLOAD_HASH_PATTERN = re.compile(r"^[0-9a-f]{64}$")
+
+
+def _payload_digest(payload: str) -> str:
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
 
 
 def init_db() -> None:
@@ -21,6 +26,11 @@ def init_db() -> None:
         if version < 2:
             db.execute("CREATE TABLE IF NOT EXISTS audit_events (id INTEGER PRIMARY KEY AUTOINCREMENT, audit_id TEXT NOT NULL, domain TEXT NOT NULL, event_type TEXT NOT NULL, actor TEXT NOT NULL, created_at TEXT NOT NULL, details TEXT NOT NULL, previous_hash TEXT NOT NULL, event_hash TEXT NOT NULL UNIQUE)")
             db.execute("PRAGMA user_version = 2")
+        columns = {row[1] for row in db.execute("PRAGMA table_info(audits)").fetchall()}
+        if "payload_sha256" not in columns:
+            db.execute("ALTER TABLE audits ADD COLUMN payload_sha256 TEXT")
+        if version < 3:
+            db.execute("PRAGMA user_version = 3")
 
 
 def _append_event(db:sqlite3.Connection,audit_id:str,domain:str,event_type:str,actor:str,details:dict)->dict:
@@ -40,9 +50,14 @@ def _append_event(db:sqlite3.Connection,audit_id:str,domain:str,event_type:str,a
 
 def save_audit(audit: AuditResult) -> None:
     init_db()
+    payload = audit.model_dump_json()
+    digest = _payload_digest(payload)
     with sqlite3.connect(DB_PATH) as db:
         exists=db.execute("SELECT 1 FROM audits WHERE id = ?",(audit.id,)).fetchone() is not None
-        db.execute("INSERT OR REPLACE INTO audits VALUES (?, ?, ?, ?)", (audit.id, audit.domain, audit.completed_at.isoformat(), audit.model_dump_json()))
+        db.execute(
+            "INSERT OR REPLACE INTO audits (id, domain, created_at, payload, payload_sha256) VALUES (?, ?, ?, ?, ?)",
+            (audit.id, audit.domain, audit.completed_at.isoformat(), payload, digest),
+        )
         _append_event(db,audit.id,audit.domain,"audit_updated" if exists else "audit_created","system",{"demo":audit.is_demo,"request_count":audit.request_count,"score":audit.score.value if audit.score else None})
 
 
@@ -95,15 +110,30 @@ def get_previous_real_audit(audit: AuditResult) -> AuditResult | None:
     init_db()
     with sqlite3.connect(DB_PATH) as db:
         rows = db.execute(
-            "SELECT payload FROM audits WHERE domain = ? AND id <> ? AND created_at < ? "
-            "ORDER BY created_at DESC",
+            "SELECT id, domain, created_at, payload, payload_sha256 FROM audits "
+            "WHERE domain = ? AND id <> ? AND created_at < ? ORDER BY created_at DESC",
             (audit.domain, audit.id, audit.completed_at.isoformat()),
         ).fetchall()
-    for row in rows:
+    for row_id, row_domain, row_created, payload, stored_hash in rows:
         try:
-            previous = AuditResult.model_validate_json(row[0])
+            previous = AuditResult.model_validate_json(payload)
         except ValueError:
             continue
-        if not previous.is_demo and previous.scan_completeness == "COMPLETED":
-            return previous
+        if previous.is_demo or previous.scan_completeness != "COMPLETED":
+            continue
+        if stored_hash is None:
+            raise ValueError(
+                "Baseline historique sans digest de payload: intégrité non vérifiable"
+            )
+        if not PAYLOAD_HASH_PATTERN.fullmatch(stored_hash):
+            raise ValueError("Digest de payload de baseline invalide")
+        if _payload_digest(payload) != stored_hash:
+            raise ValueError("Le payload de baseline ne correspond pas à son digest")
+        try:
+            row_created_at = datetime.fromisoformat(row_created)
+        except ValueError as exc:
+            raise ValueError("Horodatage de baseline invalide") from exc
+        if row_id != previous.id or row_domain != previous.domain or row_created_at != previous.completed_at:
+            raise ValueError("Identité de baseline incohérente avec son payload")
+        return previous
     return None
