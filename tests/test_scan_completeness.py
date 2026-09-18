@@ -8,6 +8,19 @@ from backend.app.policy import PolicyPack, evaluate_policy
 from backend.app.scanner import PassiveScanner
 
 
+def _install_mock_client(monkeypatch, handler):
+    def factory(*, timeout=12.0, headers=None):
+        return httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            follow_redirects=False,
+            timeout=timeout,
+            headers=headers,
+        )
+
+    monkeypatch.setattr("backend.app.scanner.build_safe_async_client", factory)
+    return factory
+
+
 POLICY = PolicyPack(
     policy_id="synthetic.completeness",
     title="Synthetic completeness control",
@@ -34,7 +47,8 @@ async def run_synthetic(
         requests.append(request)
         return handler(request)
 
-    scanner = PassiveScanner(httpx.MockTransport(recording_handler), plugins=plugins)
+    scanner = PassiveScanner(plugins=plugins)
+    _install_mock_client(monkeypatch, recording_handler)
     result = await scanner.run(
         AuditRequest(
             target="https://completeness.test",

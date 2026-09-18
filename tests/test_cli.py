@@ -18,6 +18,19 @@ from backend.app.report import save_report as write_report
 from backend.app.scanner import PassiveScanner
 
 
+def _install_mock_client(monkeypatch, handler):
+    def factory(*, timeout=12.0, headers=None):
+        return httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            follow_redirects=False,
+            timeout=timeout,
+            headers=headers,
+        )
+
+    monkeypatch.setattr("backend.app.scanner.build_safe_async_client", factory)
+    return factory
+
+
 def demo_audit() -> AuditResult:
     fixture = Path(__file__).parents[1] / "backend" / "fixtures" / "demo-audit.json"
     return AuditResult.model_validate(json.loads(fixture.read_text(encoding="utf-8")))
@@ -536,7 +549,8 @@ def test_scan_exit_code_matrix(monkeypatch, capsys, scenario, expected_exit):
                 return httpx.Response(503)
         return httpx.Response(200, text="ok", headers={"content-type": "text/html"})
 
-    scanner = PassiveScanner(httpx.MockTransport(handler))
+    _install_mock_client(monkeypatch, handler)
+    scanner = PassiveScanner()
     monkeypatch.setattr(cli, "PassiveScanner", lambda: scanner)
     monkeypatch.setattr("backend.app.scanner.asyncio.sleep", no_sleep)
     monkeypatch.setattr(cli, "save_report", lambda _audit: ("report.html", "a" * 64))
@@ -621,7 +635,8 @@ def test_monitor_incomplete_scan_persists_report_and_structured_evidence(monkeyp
     def forbidden(*_args, **_kwargs):
         raise AssertionError("Incomplete monitor scans must not be compared or evaluated")
 
-    scanner = PassiveScanner(httpx.MockTransport(handler))
+    _install_mock_client(monkeypatch, handler)
+    scanner = PassiveScanner()
     monkeypatch.setattr(cli, "PassiveScanner", lambda: scanner)
     monkeypatch.setattr(database, "DB_PATH", tmp_path / "audits.sqlite3")
     monkeypatch.setattr(cli, "save_report", lambda audit: write_report(audit, destination=report))

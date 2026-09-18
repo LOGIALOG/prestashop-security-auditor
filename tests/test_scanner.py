@@ -7,6 +7,19 @@ from backend.app.extractor_sdk import PluginSignal
 from backend.app.scanner import AuditPolicyError, PassiveScanner, assert_allowed, normalized_origin
 
 
+def _install_mock_client(monkeypatch, handler):
+    def factory(*, timeout=12.0, headers=None):
+        return httpx.AsyncClient(
+            transport=httpx.MockTransport(handler),
+            follow_redirects=False,
+            timeout=timeout,
+            headers=headers,
+        )
+
+    monkeypatch.setattr("backend.app.scanner.build_safe_async_client", factory)
+    return factory
+
+
 def test_authorization_is_required():
     with pytest.raises(ValidationError):
         AuditRequest(target="https://shop.test", authorization_confirmed=False)
@@ -18,10 +31,11 @@ def test_non_allowed_domain_is_rejected():
 
 
 @pytest.mark.asyncio
-async def test_external_redirect_is_refused():
+async def test_external_redirect_is_refused(monkeypatch):
     def handler(request: httpx.Request):
         return httpx.Response(302, headers={"location": "https://evil.test/a"})
-    scanner = PassiveScanner(httpx.MockTransport(handler))
+    _install_mock_client(monkeypatch, handler)
+    scanner = PassiveScanner()
     request = AuditRequest(target="https://shop.test", authorization_confirmed=True, delay_seconds=1)
     with pytest.raises(AuditPolicyError):
         await scanner.run(request)
@@ -36,7 +50,8 @@ async def test_request_limit_and_get_only(monkeypatch):
     def handler(request: httpx.Request):
         requests.append(request)
         return httpx.Response(200, text=body if request.url.path == '/' else '', headers={"content-type":"text/html" if request.url.path == '/' else "application/javascript"})
-    scanner = PassiveScanner(httpx.MockTransport(handler))
+    _install_mock_client(monkeypatch, handler)
+    scanner = PassiveScanner()
     result = await scanner.run(AuditRequest(target="https://shop.test", authorization_confirmed=True, max_requests=4, delay_seconds=1))
     assert result.request_count <= 4
     assert scanner.methods and set(scanner.methods) == {"GET"}
@@ -46,7 +61,7 @@ async def test_request_limit_and_get_only(monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_explicit_plugin_is_applied_without_additional_requests():
+async def test_explicit_plugin_is_applied_without_additional_requests(monkeypatch):
     class Plugin:
         plugin_id = "community.sample-module"
         api_version = "1.0"
@@ -60,7 +75,8 @@ async def test_explicit_plugin_is_applied_without_additional_requests():
         requests.append(request)
         return httpx.Response(200,text="samplemodule",headers={"content-type":"text/html"})
 
-    scanner = PassiveScanner(httpx.MockTransport(handler),plugins=[Plugin()])
+    _install_mock_client(monkeypatch, handler)
+    scanner = PassiveScanner(plugins=[Plugin()])
     result = await scanner.run(AuditRequest(target="https://shop.test",authorization_confirmed=True,max_requests=1))
 
     assert len(requests) == 1
@@ -85,7 +101,8 @@ async def run_scanner(monkeypatch, handler, *, target="https://shop.test", max_r
         return None
 
     monkeypatch.setattr("backend.app.scanner.asyncio.sleep", no_sleep)
-    scanner = PassiveScanner(httpx.MockTransport(handler))
+    _install_mock_client(monkeypatch, handler)
+    scanner = PassiveScanner()
     return await scanner.run(
         AuditRequest(
             target=target,
