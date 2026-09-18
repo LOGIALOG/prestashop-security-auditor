@@ -3,6 +3,7 @@ from __future__ import annotations
 import asyncio
 import hashlib
 import ipaddress
+import json
 import socket
 from dataclasses import dataclass
 from datetime import datetime, timezone
@@ -21,12 +22,19 @@ from .extractor_sdk import (
     run_extractor_plugins,
     validate_extractor_plugins,
 )
-from .models import AuditRequest, AuditResult, Evidence, Finding, ScanIssue, Status
+from .models import (
+    REQUIRED_HEADERS,
+    SECURITY_HEADERS,
+    AuditRequest,
+    AuditResult,
+    Evidence,
+    Finding,
+    HttpMetadataObservation,
+    ScanIssue,
+    Status,
+)
 from .redaction import redact_parameters, redact_text, redact_url
 from .scoring import calculate_score
-
-SECURITY_HEADERS = ["content-security-policy", "strict-transport-security", "permissions-policy", "x-frame-options", "x-content-type-options", "referrer-policy", "server", "cf-ray", "cf-cache-status", "x-litespeed-cache"]
-REQUIRED_HEADERS = set(SECURITY_HEADERS[:6])
 
 
 class AuditPolicyError(ValueError):
@@ -92,6 +100,29 @@ def cookie_metadata(headers: httpx.Headers) -> list[dict[str, str | bool]]:
     return output
 
 
+def _canonical_digest(payload: object) -> str:
+    encoded = json.dumps(payload, ensure_ascii=False, sort_keys=True, separators=(",", ":")).encode("utf-8")
+    return hashlib.sha256(encoded).hexdigest()
+
+
+def header_projection(headers: httpx.Headers) -> list[dict[str, object]]:
+    projection: list[dict[str, object]] = []
+    for name in SECURITY_HEADERS:
+        value = headers.get(name)
+        if value is None:
+            projection.append({"name": name, "present": False, "value": None})
+        else:
+            projection.append({"name": name, "present": True, "value": value})
+    return projection
+
+
+def cookie_projection(cookies: list[dict[str, str | bool]]) -> list[dict[str, object]]:
+    return [
+        {"name": cookie["name"], "secure": cookie["secure"], "http_only": cookie["http_only"], "same_site": cookie["same_site"]}
+        for cookie in cookies
+    ]
+
+
 class PassiveScanner:
     def __init__(self, transport: httpx.AsyncBaseTransport | None = None, plugins: Sequence[ExtractorPlugin] = ()):
         self.transport = transport
@@ -133,6 +164,7 @@ class PassiveScanner:
             )
             active_plugins = ()
         root_hash = ""
+        http_observation: HttpMetadataObservation | None = None
         observations: dict[str, UrlObservation] = {}
         attempted: list[str] = []
 
@@ -221,10 +253,19 @@ class PassiveScanner:
                         )
                     )
                     continue
-                if url == root:
+                if resource.check_id == "http:root" and http_observation is None:
                     root_hash = hashlib.sha256(response.content).hexdigest()
                     headers_seen = {name: response.headers.get(name, "Absent") for name in SECURITY_HEADERS}
                     cookies = cookie_metadata(response.headers)
+                    projection = header_projection(response.headers)
+                    http_observation = HttpMetadataObservation(
+                        url=redact_url(str(response.url)),
+                        captured_at=datetime.now(timezone.utc),
+                        observed=True,
+                        absent_headers=[entry["name"] for entry in projection if not entry["present"]],
+                        headers_sha256=_canonical_digest(projection),
+                        cookies_sha256=_canonical_digest(cookie_projection(cookies)),
+                    )
                 content_type = response.headers.get("content-type", "")
                 body = response.text[:2_000_000]
                 try:
@@ -277,12 +318,19 @@ class PassiveScanner:
                     check_id=pending_required.check_id,
                 )
             )
+        if http_observation is None:
+            http_observation = HttpMetadataObservation(
+                url=redact_url(root),
+                captured_at=datetime.now(timezone.utc),
+                observed=False,
+            )
         snapshot = advisory_snapshot_identity()
         findings = correlate(extracted, snapshot.snapshot_sha256)
-        for name, value in headers_seen.items():
-            if name in REQUIRED_HEADERS and value == "Absent":
-                evidence = Evidence(url=root, evidence_type="http_header", excerpt=f"{name}: Absent", response_sha256=root_hash, confidence="high", detection_method="response_header_check")
-                findings.append(Finding(subject=name, status=Status.HARDENING, severity="Faible", interpretation=f"En-tête {name} absent; aucune exploitation démontrée.", business_risk="Réduction de la défense en profondeur du navigateur.", remediation=f"Ajouter {name} après tests de compatibilité.", evidence=[evidence]))
+        if http_observation.observed:
+            for name in http_observation.absent_headers:
+                if name in REQUIRED_HEADERS:
+                    evidence = Evidence(url=http_observation.url, evidence_type="http_header", excerpt=f"{name}: Absent", response_sha256=root_hash, observation_sha256=http_observation.headers_sha256, confidence="high", detection_method="response_header_check")
+                    findings.append(Finding(subject=name, status=Status.HARDENING, severity="Faible", interpretation=f"En-tête {name} absent; aucune exploitation démontrée.", business_risk="Réduction de la défense en profondeur du navigateur.", remediation=f"Ajouter {name} après tests de compatibilité.", evidence=[evidence]))
         score = calculate_score(findings)
         return AuditResult(
             is_demo=False,
@@ -300,5 +348,6 @@ class PassiveScanner:
             scan_issues=scan_issues,
             advisory_snapshot_sha256=snapshot.snapshot_sha256,
             advisory_snapshot_date=snapshot.snapshot_date,
+            http_observation=http_observation,
             score=score,
         )

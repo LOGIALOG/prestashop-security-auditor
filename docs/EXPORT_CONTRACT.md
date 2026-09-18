@@ -10,6 +10,8 @@ The audit payload exposes `scan_completeness` as `COMPLETED` or `INCOMPLETE` and
 
 The audit payload may additionally expose `advisory_snapshot_sha256` and `advisory_snapshot_date`, and advisory-derived findings may expose `advisory_snapshot_sha256`, binding correlation to the verified signed advisory snapshot. These are additive optional properties: they do not change finding status, coverage or policy decisions.
 
+The audit payload may also expose an additive `http_observation` describing the terminal HTTP header/cookie observation of the root resource: its redacted URL, capture time, `observed` flag, explicit `absent_headers`, and `headers_sha256`/`cookies_sha256` digests over canonical metadata-only projections. Evidence may expose an additive `observation_sha256` that binds a claim to that structured observation. `response_sha256` remains the SHA-256 identity of the response body bytes; `observation_sha256` binds the canonical structured observation used for the claim. Neither digest is a digital signature or authenticated provenance. Historical audits may have `http_observation` absent (`null`); no evidence is fabricated for them. `format_version` remains `1.0`.
+
 Evidence provenance fields (`url`, `captured_at`, `evidence_type`, `excerpt`, `response_sha256`, `confidence` and `detection_method`) will not be removed or change meaning within version 1.
 
 ## SARIF

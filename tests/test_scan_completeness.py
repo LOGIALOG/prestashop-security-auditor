@@ -885,3 +885,21 @@ async def test_complete_scan_binds_advisory_snapshot_identity(monkeypatch):
         finding.advisory_snapshot_sha256 == identity.snapshot_sha256
         for finding in advisory_findings
     )
+
+
+@pytest.mark.asyncio
+async def test_extractor_failure_after_root_keeps_http_metadata_observed(monkeypatch):
+    def handler(_request):
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html"})
+
+    def failing_extract_html(_url, _body, _content_type):
+        raise RuntimeError("synthetic builtin extractor failure")
+
+    monkeypatch.setattr("backend.app.scanner.extract_html", failing_extract_html)
+    result = await run_synthetic(handler, monkeypatch, max_requests=2)
+
+    assert result.http_observation is not None
+    assert result.http_observation.observed is True
+    assert len(result.http_observation.headers_sha256) == 64
+    assert len(result.http_observation.cookies_sha256) == 64
+    assert result.scan_completeness == "INCOMPLETE"

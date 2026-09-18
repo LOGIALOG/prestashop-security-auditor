@@ -111,3 +111,33 @@ def test_exports_bind_advisory_snapshot_identity_additively():
     assert exported["audit"]["advisory_snapshot_sha256"] == digest
     assert exported["audit"]["advisory_snapshot_date"] == "2026-01-01"
     assert exported["audit"]["findings"][0]["advisory_snapshot_sha256"] == digest
+
+
+def test_sarif_exposes_observation_sha256_for_bound_evidence():
+    audit = demo_audit()
+    digest = "a" * 64
+    audit.findings[0].evidence[0].observation_sha256 = digest
+
+    run = render_sarif(audit)["runs"][0]
+    location = run["results"][0]["locations"][0]
+
+    assert location["properties"]["observationSha256"] == digest
+    assert len(location["properties"]["responseSha256"]) == 64
+    exported = render_json_export(audit)
+    assert exported["format_version"] == "1.0"
+    assert exported["audit"]["findings"][0]["evidence"][0]["observation_sha256"] == digest
+
+
+def test_sarif_observation_sha256_is_none_for_unrelated_evidence():
+    audit = demo_audit()
+    for finding in audit.findings:
+        for evidence in finding.evidence:
+            evidence.observation_sha256 = None
+
+    run = render_sarif(audit)["runs"][0]
+
+    assert all(
+        location["properties"]["observationSha256"] is None
+        for result in run["results"]
+        for location in result["locations"]
+    )
