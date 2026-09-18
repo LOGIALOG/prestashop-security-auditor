@@ -6,6 +6,9 @@ from typing import Literal
 
 from pydantic import BaseModel, Field, HttpUrl, field_validator, model_validator
 
+SECURITY_HEADERS = ["content-security-policy", "strict-transport-security", "permissions-policy", "x-frame-options", "x-content-type-options", "referrer-policy", "server", "cf-ray", "cf-cache-status", "x-litespeed-cache"]
+REQUIRED_HEADERS = set(SECURITY_HEADERS[:6])
+
 
 class Status(str, Enum):
     CONFIRMED = "CONFIRMED"
@@ -47,8 +50,34 @@ class Evidence(BaseModel):
     evidence_type: str
     excerpt: str
     response_sha256: str
+    observation_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     confidence: Literal["high", "medium", "low"]
     detection_method: str
+
+
+class HttpMetadataObservation(BaseModel):
+    url: str
+    captured_at: datetime
+    method: Literal["GET"] = "GET"
+    observed: bool
+    absent_headers: list[str] = Field(default_factory=list)
+    headers_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+    cookies_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
+
+    @model_validator(mode="after")
+    def observation_state_consistent(self) -> "HttpMetadataObservation":
+        if self.observed:
+            if self.headers_sha256 is None or self.cookies_sha256 is None:
+                raise ValueError("Une observation HTTP observée exige les digests d’en-têtes et de cookies")
+        elif self.headers_sha256 is not None or self.cookies_sha256 is not None or self.absent_headers:
+            raise ValueError("Une observation HTTP non observée ne peut porter ni digest ni absence")
+        if any(name != name.lower() for name in self.absent_headers):
+            raise ValueError("absent_headers doit contenir des noms en minuscules")
+        if len(set(self.absent_headers)) != len(self.absent_headers):
+            raise ValueError("absent_headers ne doit pas contenir de doublons")
+        if any(name not in SECURITY_HEADERS for name in self.absent_headers):
+            raise ValueError("absent_headers contient un en-tête non suivi")
+        return self
 
 
 class Finding(BaseModel):
@@ -106,6 +135,7 @@ class AuditResult(BaseModel):
     report_sha256: str | None = None
     advisory_snapshot_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
     advisory_snapshot_date: date | None = None
+    http_observation: "HttpMetadataObservation | None" = None
     score: "ScoreResult | None" = None
 
     @model_validator(mode="before")

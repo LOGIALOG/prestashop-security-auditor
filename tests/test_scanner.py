@@ -66,3 +66,204 @@ async def test_explicit_plugin_is_applied_without_additional_requests():
     assert len(requests) == 1
     assert result.findings[0].subject == "samplemodule"
     assert result.findings[0].evidence[0].detection_method == "plugin:community.sample-module:marker"
+
+
+import hashlib
+import json
+from pathlib import Path
+
+from backend.app.models import AuditResult, HttpMetadataObservation, SECURITY_HEADERS
+
+
+def demo_audit_result() -> AuditResult:
+    fixture = Path(__file__).parents[1] / "backend" / "fixtures" / "demo-audit.json"
+    return AuditResult.model_validate(json.loads(fixture.read_text(encoding="utf-8")))
+
+
+async def run_scanner(monkeypatch, handler, *, target="https://shop.test", max_requests=5, public_pages=()):
+    async def no_sleep(_):
+        return None
+
+    monkeypatch.setattr("backend.app.scanner.asyncio.sleep", no_sleep)
+    scanner = PassiveScanner(httpx.MockTransport(handler))
+    return await scanner.run(
+        AuditRequest(
+            target=target,
+            authorization_confirmed=True,
+            max_requests=max_requests,
+            delay_seconds=1,
+            public_pages=list(public_pages),
+        )
+    )
+
+
+@pytest.mark.asyncio
+async def test_direct_root_creates_observed_http_metadata(monkeypatch):
+    def handler(_request):
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html", "x-frame-options": "DENY"})
+
+    result = await run_scanner(monkeypatch, handler)
+
+    observation = result.http_observation
+    assert observation is not None
+    assert observation.observed is True
+    assert observation.url.startswith("https://shop.test/")
+    assert len(observation.headers_sha256) == 64
+    assert len(observation.cookies_sha256) == 64
+    assert "x-frame-options" not in observation.absent_headers
+    assert "content-security-policy" in observation.absent_headers
+
+
+@pytest.mark.asyncio
+async def test_literal_absent_header_value_is_present(monkeypatch):
+    def handler(_request):
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html", "content-security-policy": "Absent"})
+
+    result = await run_scanner(monkeypatch, handler)
+
+    assert "content-security-policy" not in result.http_observation.absent_headers
+    assert not any(finding.subject == "content-security-policy" for finding in result.findings)
+
+
+@pytest.mark.asyncio
+async def test_genuinely_missing_required_header_produces_finding_and_binding(monkeypatch):
+    def handler(_request):
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html"})
+
+    result = await run_scanner(monkeypatch, handler)
+
+    assert "content-security-policy" in result.http_observation.absent_headers
+    finding = next(finding for finding in result.findings if finding.subject == "content-security-policy")
+    evidence = finding.evidence[0]
+    assert evidence.observation_sha256 == result.http_observation.headers_sha256
+    assert evidence.response_sha256 == hashlib.sha256(b"ok").hexdigest()
+    assert evidence.url == result.http_observation.url
+
+
+@pytest.mark.asyncio
+async def test_header_projection_digest_is_deterministic_and_changes(monkeypatch):
+    def handler_one(_request):
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html", "x-frame-options": "DENY"})
+
+    def handler_two(_request):
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html", "x-frame-options": "SAMEORIGIN"})
+
+    first = await run_scanner(monkeypatch, handler_one)
+    second = await run_scanner(monkeypatch, handler_one)
+    changed = await run_scanner(monkeypatch, handler_two)
+
+    assert first.http_observation.headers_sha256 == second.http_observation.headers_sha256
+    assert first.http_observation.headers_sha256 != changed.http_observation.headers_sha256
+
+
+@pytest.mark.asyncio
+async def test_same_origin_root_redirect_captures_terminal_response(monkeypatch):
+    def handler(request):
+        if request.url.path == "/":
+            return httpx.Response(302, headers={"location": "/home"})
+        return httpx.Response(
+            200,
+            text="terminal-body",
+            headers={"content-type": "text/html", "x-frame-options": "DENY", "set-cookie": "session=SUPER_SECRET_COOKIE_VALUE; Secure; HttpOnly; SameSite=Lax"},
+        )
+
+    result = await run_scanner(monkeypatch, handler)
+    observation = result.http_observation
+
+    assert observation.observed is True
+    assert observation.url.endswith("/home")
+    assert result.headers.get("x-frame-options") == "DENY"
+    assert result.cookies and result.cookies[0]["name"] == "session"
+    finding = next(finding for finding in result.findings if finding.subject == "content-security-policy")
+    assert finding.evidence[0].response_sha256 == hashlib.sha256(b"terminal-body").hexdigest()
+
+
+@pytest.mark.asyncio
+async def test_failed_root_is_not_observed(monkeypatch):
+    def handler(request):
+        raise httpx.ConnectError("synthetic failure", request=request)
+
+    result = await run_scanner(monkeypatch, handler)
+    observation = result.http_observation
+
+    assert observation is not None
+    assert observation.observed is False
+    assert observation.absent_headers == []
+    assert observation.headers_sha256 is None
+    assert observation.cookies_sha256 is None
+    assert not any(finding.evidence and finding.evidence[0].evidence_type == "http_header" for finding in result.findings)
+    assert result.scan_completeness == "INCOMPLETE"
+
+
+@pytest.mark.asyncio
+async def test_no_cookies_is_observed_empty_not_unobserved(monkeypatch):
+    def handler(_request):
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html"})
+
+    result = await run_scanner(monkeypatch, handler)
+
+    assert result.http_observation.observed is True
+    assert result.cookies == []
+    assert len(result.http_observation.cookies_sha256) == 64
+    assert result.http_observation.cookies_sha256 == hashlib.sha256(b"[]").hexdigest()
+    assert result.http_observation.cookies_sha256 != result.http_observation.headers_sha256
+
+
+@pytest.mark.asyncio
+async def test_raw_cookie_value_is_never_persisted(monkeypatch):
+    def handler(_request):
+        return httpx.Response(
+            200,
+            text="ok",
+            headers={"content-type": "text/html", "set-cookie": "session=SUPER_SECRET_COOKIE_VALUE; Secure; HttpOnly; SameSite=Lax"},
+        )
+
+    result = await run_scanner(monkeypatch, handler)
+    serialized = result.model_dump_json()
+
+    assert "SUPER_SECRET_COOKIE_VALUE" not in serialized
+    assert result.cookies[0]["name"] == "session"
+    assert "value" not in result.cookies[0]
+
+
+@pytest.mark.asyncio
+async def test_multiple_set_cookie_headers_remain_ordered_and_distinct(monkeypatch):
+    def handler(_request):
+        return httpx.Response(
+            200,
+            text="ok",
+            headers=[("content-type", "text/html"), ("set-cookie", "alpha=ALPHA_RAW_VALUE; Secure"), ("set-cookie", "beta=BETA_RAW_VALUE; HttpOnly")],
+        )
+
+    result = await run_scanner(monkeypatch, handler)
+    serialized = result.model_dump_json()
+
+    assert [cookie["name"] for cookie in result.cookies] == ["alpha", "beta"]
+    assert all("value" not in cookie for cookie in result.cookies)
+    assert "ALPHA_RAW_VALUE" not in serialized
+    assert "BETA_RAW_VALUE" not in serialized
+
+
+def test_legacy_audit_without_observation_deserializes_with_none():
+    result = demo_audit_result()
+
+    assert result.http_observation is None
+    assert all(
+        evidence.observation_sha256 is None
+        for finding in result.findings
+        for evidence in finding.evidence
+    )
+
+
+def test_http_metadata_observation_rejects_contradictory_states():
+    from datetime import datetime, timezone
+
+    now = datetime(2000, 1, 1, tzinfo=timezone.utc)
+    with pytest.raises(ValidationError):
+        HttpMetadataObservation(url="https://shop.test/", captured_at=now, observed=False, headers_sha256="a" * 64)
+    with pytest.raises(ValidationError):
+        HttpMetadataObservation(url="https://shop.test/", captured_at=now, observed=False, absent_headers=["content-security-policy"])
+    with pytest.raises(ValidationError):
+        HttpMetadataObservation(url="https://shop.test/", captured_at=now, observed=True)
+    with pytest.raises(ValidationError):
+        HttpMetadataObservation(url="https://shop.test/", captured_at=now, observed=True, headers_sha256="a" * 64, cookies_sha256="b" * 64, absent_headers=["not-a-tracked-header"])

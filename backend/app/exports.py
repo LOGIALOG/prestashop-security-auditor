@@ -61,6 +61,7 @@ def render_sarif(audit: AuditResult) -> dict[str, Any]:
                 "properties": {
                     "capturedAt": evidence.captured_at.isoformat(),
                     "responseSha256": evidence.response_sha256,
+                    "observationSha256": evidence.observation_sha256,
                     "confidence": evidence.confidence,
                     "detectionMethod": evidence.detection_method,
                     "evidenceType": evidence.evidence_type,
