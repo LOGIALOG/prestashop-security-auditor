@@ -56,7 +56,7 @@ def test_real_scanner_rejects_cross_origin_before_dns(monkeypatch):
     def reject_dns(*_args, **_kwargs):
         raise AssertionError("DNS must not run before scope validation")
 
-    monkeypatch.setattr("backend.app.scanner.reject_private_target", reject_dns)
+    monkeypatch.setattr("backend.app.scanner.build_safe_async_client", reject_dns)
     request = AuditRequest(
         target="https://shop.test",
         authorization_confirmed=True,

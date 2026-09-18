@@ -2,9 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
-import ipaddress
 import json
-import socket
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from urllib.parse import urlsplit
@@ -33,6 +31,7 @@ from .models import (
     ScanIssue,
     Status,
 )
+from .network_policy import EgressPolicyError, build_safe_async_client
 from .redaction import redact_parameters, redact_text, redact_url
 from .scoring import calculate_score
 
@@ -66,13 +65,6 @@ def normalized_origin(url: str) -> tuple[str, str, int]:
 def assert_allowed(url: str, origin: tuple[str, str, int]) -> None:
     if normalized_origin(url) != origin:
         raise AuditPolicyError("URL hors du domaine autorisé")
-
-
-def reject_private_target(host: str) -> None:
-    for info in socket.getaddrinfo(host, None):
-        ip = ipaddress.ip_address(info[4][0])
-        if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_multicast or ip.is_reserved:
-            raise AuditPolicyError("Les cibles privées ou locales ne sont pas autorisées pour l'audit distant")
 
 
 def issue_detail(exc: BaseException, *, check_id: str | None = None, include_message: bool = False) -> str:
@@ -124,8 +116,7 @@ def cookie_projection(cookies: list[dict[str, str | bool]]) -> list[dict[str, ob
 
 
 class PassiveScanner:
-    def __init__(self, transport: httpx.AsyncBaseTransport | None = None, plugins: Sequence[ExtractorPlugin] = ()):
-        self.transport = transport
+    def __init__(self, plugins: Sequence[ExtractorPlugin] = ()):
         self.plugins = tuple(plugins)
         self.methods: list[str] = []
 
@@ -144,8 +135,6 @@ class PassiveScanner:
                 resources.append(candidate)
         for resource in resources:
             assert_allowed(resource.url, origin)
-        if self.transport is None:
-            await asyncio.to_thread(reject_private_target, origin[1])
         extracted: list[Extracted] = []
         headers_seen: dict[str, str] = {}
         cookies: list[dict[str, str | bool]] = []
@@ -196,7 +185,7 @@ class PassiveScanner:
                 )
             )
 
-        async with httpx.AsyncClient(transport=self.transport, follow_redirects=False, timeout=12, headers={"User-Agent": "LOGIALOG-Passive-Auditor/1.0"}) as client:
+        async with build_safe_async_client(timeout=12, headers={"User-Agent": "LOGIALOG-Passive-Auditor/1.0"}) as client:
             while resources:
                 resource = resources.pop(0)
                 url = resource.url
@@ -221,7 +210,7 @@ class PassiveScanner:
                 attempted.append(url)
                 try:
                     response = await client.get(url)
-                except httpx.TransportError as exc:
+                except (httpx.TransportError, EgressPolicyError) as exc:
                     record_failure(url, resource.required)
                     scan_issues.append(
                         ScanIssue(
