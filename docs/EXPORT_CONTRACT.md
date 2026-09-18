@@ -38,4 +38,6 @@ Local assessment CycloneDX exports add vulnerability objects linked to stable co
 
 `logialog-scan-plan` `1.0` additively exposes `required_requests` and `optional_requests` alongside `fixed_requests`; this is a compatible within-major addition under the additive-property rule above and does not require a version bump. Adding further optional properties keeps `1.0`; removing a listed field, changing its meaning or weakening a safety assertion requires a new major version and fixture-based compatibility tests.
 
+`logialog-local-code-review` remains `format_version` `1.0`. Each `CodeReviewSignal` may additively expose an optional `file_sha256`: the SHA-256 of the exact raw PHP bytes captured and scanned by the rule engine. Every newly generated signal populates it; legacy serialized signals may have it absent (`null`), and no historical hash is fabricated. The digest is content identity metadata only — not a signature or authenticated provenance — and source content is never exported.
+
 Local assessment SARIF targets SARIF `2.1.0` and points each result to the local metadata file used as version evidence. An affected version correlation is a remediation signal, not exploitation evidence.
