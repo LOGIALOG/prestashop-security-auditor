@@ -263,7 +263,7 @@ def insert_raw_row(db_path, row_id, domain, created_at, payload, payload_sha256=
         )
 
 
-def test_fresh_schema_reaches_user_version_3(monkeypatch, tmp_path):
+def test_fresh_schema_reaches_user_version_4(monkeypatch, tmp_path):
     db_path = tmp_path / "fresh.sqlite3"
     monkeypatch.setattr(database, "DB_PATH", db_path)
 
@@ -272,11 +272,11 @@ def test_fresh_schema_reaches_user_version_3(monkeypatch, tmp_path):
     with sqlite3.connect(db_path) as db:
         version = db.execute("PRAGMA user_version").fetchone()[0]
         columns = {row[1] for row in db.execute("PRAGMA table_info(audits)").fetchall()}
-    assert version == 3
+    assert version == 4
     assert "payload_sha256" in columns
 
 
-def test_v2_database_migrates_to_v3_preserving_row(monkeypatch, tmp_path):
+def test_v2_database_migrates_to_v4_preserving_row(monkeypatch, tmp_path):
     db_path = tmp_path / "v2.sqlite3"
     payload = audit("legacy", completed_at=NOW).model_dump_json()
     with sqlite3.connect(db_path) as db:
@@ -291,7 +291,7 @@ def test_v2_database_migrates_to_v3_preserving_row(monkeypatch, tmp_path):
     with sqlite3.connect(db_path) as db:
         version = db.execute("PRAGMA user_version").fetchone()[0]
         row = db.execute("SELECT id, domain, created_at, payload, payload_sha256 FROM audits WHERE id='legacy'").fetchone()
-    assert version == 3
+    assert version == 4
     assert row[0] == "legacy"
     assert row[1] == "shop.test"
     assert row[3] == payload
@@ -309,7 +309,7 @@ def test_init_db_is_idempotent(monkeypatch, tmp_path):
         columns = [row[1] for row in db.execute("PRAGMA table_info(audits)").fetchall()]
         version = db.execute("PRAGMA user_version").fetchone()[0]
     assert columns.count("payload_sha256") == 1
-    assert version == 3
+    assert version == 4
 
 
 def test_save_audit_stores_payload_digest_of_exact_text(monkeypatch, tmp_path):
