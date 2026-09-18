@@ -779,3 +779,21 @@ def test_source_assess_command_exports_sarif_and_fails_on_affected(tmp_path):
     payload = json.loads(destination.read_text(encoding="utf-8"))
     assert payload["runs"][0]["results"][0]["level"] == "error"
     assert payload["runs"][0]["results"][0]["ruleId"] == "friendsofpresta-CVE-2023-43979"
+
+
+def test_source_review_command_exports_file_sha256_additively(tmp_path):
+    module = tmp_path / "shop" / "modules" / "sample"
+    module.mkdir(parents=True)
+    (module / "sample.php").write_text("<?php\neval($x);", encoding="utf-8")
+    output = tmp_path / "code-review.json"
+
+    code = cli.main(["source", "review", str(tmp_path / "shop"), "--output", str(output)])
+
+    assert code == cli.EXIT_OK
+    text = output.read_text(encoding="utf-8")
+    payload = json.loads(text)
+    assert payload["format"] == "logialog-local-code-review"
+    assert payload["format_version"] == "1.0"
+    signal = payload["signals"][0]
+    assert len(signal["file_sha256"]) == 64
+    assert "eval($x)" not in text

@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import re
 from pathlib import Path, PurePosixPath
 from typing import Literal
@@ -18,6 +19,7 @@ class CodeReviewSignal(BaseModel):
     confidence: Literal["high", "medium", "low"]
     interpretation: str
     remediation: str
+    file_sha256: str | None = Field(default=None, pattern=r"^[0-9a-f]{64}$")
 
 
 class LocalCodeReview(BaseModel):
@@ -59,8 +61,15 @@ def review_local_php(source: Path) -> LocalCodeReview:
         if path.stat().st_size > MAX_FILE_BYTES:
             warnings.append(f"Fichier ignoré car trop volumineux: {relative}")
             continue
-        for line_number, line in enumerate(path.read_text(encoding="utf-8", errors="replace").splitlines(), 1):
+        with path.open("rb") as handle:
+            raw = handle.read(MAX_FILE_BYTES + 1)
+        if len(raw) > MAX_FILE_BYTES:
+            warnings.append(f"Fichier ignoré car trop volumineux: {relative}")
+            continue
+        file_sha256 = hashlib.sha256(raw).hexdigest()
+        text = raw.decode("utf-8", errors="replace")
+        for line_number, line in enumerate(text.splitlines(), 1):
             for rule_id, pattern, confidence, interpretation, remediation in RULES:
                 if pattern.search(line):
-                    signals.append(CodeReviewSignal(rule_id=rule_id, relative_path=relative, line=line_number, confidence=confidence, interpretation=interpretation, remediation=remediation))
+                    signals.append(CodeReviewSignal(rule_id=rule_id, relative_path=relative, line=line_number, confidence=confidence, interpretation=interpretation, remediation=remediation, file_sha256=file_sha256))
     return LocalCodeReview(scanned_files=scanned, signals=signals, warnings=warnings)

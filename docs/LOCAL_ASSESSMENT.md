@@ -20,11 +20,11 @@ Two read-only local commands support assessment without network access or code e
 # Deterministic source inventory (core, modules, Composer)
 .\.venv\Scripts\python.exe -m backend.app.cli source scan C:\path\to\prestashop --format cyclonedx --output reports\sbom.json
 
-# PHP patterns requiring manual review (rule, path, line, confidence)
+# PHP patterns requiring manual review (rule, path, line, confidence, file SHA-256)
 .\.venv\Scripts\python.exe -m backend.app.cli source review C:\path\to\prestashop --output reports\code-review.json
 ```
 
-`source scan` exports no file contents and never invents a missing version. `source review` returns bounded signals only and never turns a signal into a confirmed vulnerability.
+`source scan` exports no file contents and never invents a missing version. `source review` returns bounded signals only and never turns a signal into a confirmed vulnerability. PHP is not executed and source content is not exported; each signal carries the SHA-256 of the exact raw file bytes captured and reviewed, which binds the signal to that content. This digest is content identity only — it is not proof of exploitation and not authenticated provenance.
 
 ## State semantics
 
