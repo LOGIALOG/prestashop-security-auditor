@@ -31,6 +31,24 @@ def init_db() -> None:
             db.execute("ALTER TABLE audits ADD COLUMN payload_sha256 TEXT")
         if version < 3:
             db.execute("PRAGMA user_version = 3")
+        if version < 4:
+            db.execute(
+                "CREATE TABLE IF NOT EXISTS authorization_challenges ("
+                "id TEXT PRIMARY KEY, "
+                "canonical_origin TEXT NOT NULL, "
+                "canonical_host TEXT NOT NULL, "
+                "token_sha256 TEXT NOT NULL UNIQUE, "
+                "status TEXT NOT NULL CHECK(status IN ('PENDING','VERIFIED','REVOKED')), "
+                "created_at TEXT NOT NULL, "
+                "expires_at TEXT NOT NULL, "
+                "verified_at TEXT, "
+                "verification_method TEXT, "
+                "initial_scan_consumed_at TEXT, "
+                "rescan_consumed_at TEXT)"
+            )
+            db.execute("CREATE INDEX IF NOT EXISTS idx_authorization_challenges_host ON authorization_challenges(canonical_host)")
+            db.execute("CREATE INDEX IF NOT EXISTS idx_authorization_challenges_expires ON authorization_challenges(expires_at)")
+            db.execute("PRAGMA user_version = 4")
 
 
 def _append_event(db:sqlite3.Connection,audit_id:str,domain:str,event_type:str,actor:str,details:dict)->dict:
@@ -137,3 +155,83 @@ def get_previous_real_audit(audit: AuditResult) -> AuditResult | None:
             raise ValueError("Identité de baseline incohérente avec son payload")
         return previous
     return None
+
+
+AUTHORIZATION_CHALLENGE_COLUMNS = (
+    "id",
+    "canonical_origin",
+    "canonical_host",
+    "token_sha256",
+    "status",
+    "created_at",
+    "expires_at",
+    "verified_at",
+    "verification_method",
+    "initial_scan_consumed_at",
+    "rescan_consumed_at",
+)
+
+
+def insert_authorization_challenge(
+    challenge_id: str,
+    canonical_origin: str,
+    canonical_host: str,
+    token_sha256: str,
+    created_at: str,
+    expires_at: str,
+) -> None:
+    init_db()
+    with sqlite3.connect(DB_PATH) as db:
+        db.execute(
+            "INSERT INTO authorization_challenges "
+            "(id, canonical_origin, canonical_host, token_sha256, status, created_at, expires_at, "
+            "verified_at, verification_method, initial_scan_consumed_at, rescan_consumed_at) "
+            "VALUES (?, ?, ?, ?, 'PENDING', ?, ?, NULL, NULL, NULL, NULL)",
+            (challenge_id, canonical_origin, canonical_host, token_sha256, created_at, expires_at),
+        )
+
+
+def get_authorization_challenge(challenge_id: str) -> dict | None:
+    init_db()
+    with sqlite3.connect(DB_PATH) as db:
+        row = db.execute(
+            f"SELECT {', '.join(AUTHORIZATION_CHALLENGE_COLUMNS)} FROM authorization_challenges WHERE id = ?",
+            (challenge_id,),
+        ).fetchone()
+    if row is None:
+        return None
+    return dict(zip(AUTHORIZATION_CHALLENGE_COLUMNS, row))
+
+
+def mark_challenge_verified(
+    challenge_id: str,
+    verification_method: str,
+    verified_at: str,
+    now: str,
+) -> int:
+    init_db()
+    with sqlite3.connect(DB_PATH) as db:
+        cursor = db.execute(
+            "UPDATE authorization_challenges "
+            "SET status = 'VERIFIED', verification_method = ?, verified_at = ? "
+            "WHERE id = ? AND status = 'PENDING' AND expires_at > ?",
+            (verification_method, verified_at, challenge_id, now),
+        )
+        return cursor.rowcount
+
+
+def revoke_authorization_challenge(challenge_id: str) -> int:
+    init_db()
+    with sqlite3.connect(DB_PATH) as db:
+        cursor = db.execute(
+            "UPDATE authorization_challenges SET status = 'REVOKED' WHERE id = ? AND status <> 'REVOKED'",
+            (challenge_id,),
+        )
+        return cursor.rowcount
+
+
+def purge_expired_challenges(now: str) -> int:
+    init_db()
+    with sqlite3.connect(DB_PATH) as db:
+        cursor = db.execute("DELETE FROM authorization_challenges WHERE expires_at <= ?", (now,))
+        return cursor.rowcount
