@@ -917,3 +917,116 @@ async def test_extractor_failure_after_root_keeps_http_metadata_observed(monkeyp
     assert len(result.http_observation.headers_sha256) == 64
     assert len(result.http_observation.cookies_sha256) == 64
     assert result.scan_completeness == "INCOMPLETE"
+
+
+def _all_required_headers_present():
+    return {name: "present" for name in scanner_module.REQUIRED_HEADERS}
+
+
+@pytest.mark.asyncio
+async def test_declared_required_check_without_result_cannot_complete(monkeypatch):
+    from backend.app.scanner import CheckDeclaration, CheckExecutionRegistry
+
+    declaration = CheckDeclaration(check_id="http:synthetic-check", required=True, target="https://completeness.test")
+    registry = CheckExecutionRegistry([declaration])
+    terminal = registry.finalize()
+
+    assert len(terminal) == 1
+    _, result = terminal[0]
+    assert result.state == "NOT_EXECUTED"
+
+    def handler(_request):
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html", **_all_required_headers_present()})
+
+    scan_result = await run_synthetic(handler, monkeypatch, max_requests=2)
+    # Real scan still completes because its own declared check produced a result;
+    # the synthetic missing-result contract is proven directly above.
+    assert scan_result.scan_completeness == "COMPLETED"
+
+    def missing_handler(_request):
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html"})
+
+    synthetic = await run_synthetic(missing_handler, monkeypatch, max_requests=2)
+    not_tested = [issue for issue in synthetic.scan_issues if issue.kind == "CHECK_NOT_TESTED"]
+    assert all(issue.check_id != "http:security-headers" for issue in not_tested)
+
+
+@pytest.mark.asyncio
+async def test_successful_header_check_with_zero_findings_completes(monkeypatch):
+    def handler(_request):
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html", **_all_required_headers_present()})
+
+    result = await run_synthetic(handler, monkeypatch, max_requests=2)
+
+    assert result.scan_completeness == "COMPLETED"
+    assert result.http_observation.observed is True
+    assert not any(finding.status.value == "HARDENING" for finding in result.findings)
+    assert not any(issue.kind == "CHECK_NOT_TESTED" for issue in result.scan_issues)
+
+
+@pytest.mark.asyncio
+async def test_successful_header_observation_with_finding_is_independent_of_coverage(monkeypatch):
+    headers = _all_required_headers_present()
+    headers.pop("content-security-policy", None)
+
+    def handler(_request):
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html", **headers})
+
+    result = await run_synthetic(handler, monkeypatch, max_requests=2)
+
+    assert result.scan_completeness == "COMPLETED"
+    finding = next(finding for finding in result.findings if finding.subject == "content-security-policy")
+    assert finding.status.value == "HARDENING"
+    assert finding.evidence[0].evidence_type == "http_header"
+    assert finding.evidence[0].observation_sha256 == result.http_observation.headers_sha256
+
+
+@pytest.mark.asyncio
+async def test_failed_root_does_not_fabricate_header_finding_or_duplicate_issue(monkeypatch):
+    def handler(request):
+        raise httpx.ConnectError("synthetic failure", request=request)
+
+    result = await run_synthetic(handler, monkeypatch, max_requests=2)
+
+    assert result.scan_completeness == "INCOMPLETE"
+    assert result.http_observation.observed is False
+    assert not any(finding.evidence and finding.evidence[0].evidence_type == "http_header" for finding in result.findings)
+    assert any(issue.kind == "TRANSPORT_ERROR" for issue in result.scan_issues)
+    assert not any(issue.kind == "CHECK_NOT_TESTED" for issue in result.scan_issues)
+
+
+@pytest.mark.asyncio
+async def test_internal_execution_state_is_not_serialized(monkeypatch):
+    def handler(_request):
+        return httpx.Response(200, text="ok", headers={"content-type": "text/html", **_all_required_headers_present()})
+
+    result = await run_synthetic(handler, monkeypatch, max_requests=2)
+    serialized = result.model_dump_json()
+    keys = result.model_dump().keys()
+
+    assert "check_declarations" not in serialized
+    assert "terminal_results" not in serialized
+    assert "execution_results" not in keys
+    assert "check_declarations" not in keys
+    assert "CheckExecutionRegistry" not in serialized
+
+
+def test_duplicate_terminal_result_is_rejected():
+    from backend.app.scanner import CheckDeclaration, CheckExecutionRegistry
+
+    declaration = CheckDeclaration(check_id="http:synthetic-check", required=True, target="https://completeness.test")
+    registry = CheckExecutionRegistry([declaration])
+    registry.record(declaration, "SUCCESS_NO_FINDING")
+    with pytest.raises(ValueError):
+        registry.record(declaration, "FAILED_OBSERVATION", reason="root-unavailable")
+
+
+def test_unknown_declaration_result_is_rejected():
+    from backend.app.scanner import CheckDeclaration, CheckExecutionRegistry
+
+    registry = CheckExecutionRegistry(
+        [CheckDeclaration(check_id="http:synthetic-check", required=True, target="https://completeness.test")]
+    )
+    stranger = CheckDeclaration(check_id="http:other", required=True, target="https://completeness.test")
+    with pytest.raises(ValueError):
+        registry.record(stranger, "SUCCESS_NO_FINDING")
