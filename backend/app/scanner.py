@@ -49,6 +49,69 @@ class ScanResource:
 
 
 @dataclass(frozen=True)
+class CheckDeclaration:
+    check_id: str
+    required: bool
+    target: str
+
+    @property
+    def identity(self) -> tuple[str, str]:
+        return (self.check_id, self.target)
+
+
+@dataclass(frozen=True)
+class CheckExecutionResult:
+    state: str
+    reason: str | None = None
+
+
+TERMINAL_STATES = frozenset({"SUCCESS_WITH_EVIDENCE", "SUCCESS_NO_FINDING", "FAILED_OBSERVATION", "NOT_EXECUTED"})
+COVERAGE_FAILURE_STATES = frozenset({"FAILED_OBSERVATION", "NOT_EXECUTED"})
+CHECK_STATE_SUCCESS_WITH_EVIDENCE = "SUCCESS_WITH_EVIDENCE"
+CHECK_STATE_SUCCESS_NO_FINDING = "SUCCESS_NO_FINDING"
+CHECK_STATE_FAILED_OBSERVATION = "FAILED_OBSERVATION"
+CHECK_STATE_NOT_EXECUTED = "NOT_EXECUTED"
+REASON_ROOT_UNAVAILABLE = "root-unavailable"
+
+
+class CheckExecutionRegistry:
+    def __init__(self, declarations: Sequence[CheckDeclaration]) -> None:
+        self._declarations: dict[tuple[str, str], CheckDeclaration] = {}
+        for declaration in declarations:
+            if declaration.identity in self._declarations:
+                raise ValueError("Déclaration de contrôle dupliquée")
+            self._declarations[declaration.identity] = declaration
+        self._results: dict[tuple[str, str], CheckExecutionResult] = {}
+
+    @property
+    def declarations(self) -> tuple[CheckDeclaration, ...]:
+        return tuple(self._declarations.values())
+
+    def record(self, declaration: CheckDeclaration, state: str, reason: str | None = None) -> None:
+        if state not in TERMINAL_STATES:
+            raise ValueError("État terminal de contrôle invalide")
+        identity = declaration.identity
+        if identity not in self._declarations:
+            raise ValueError("Résultat pour une déclaration de contrôle inconnue")
+        if identity in self._results:
+            raise ValueError("Un contrôle ne peut produire qu'un seul résultat terminal")
+        self._results[identity] = CheckExecutionResult(state=state, reason=reason)
+
+    def result_for(self, declaration: CheckDeclaration) -> CheckExecutionResult | None:
+        return self._results.get(declaration.identity)
+
+    def finalize(self) -> tuple[tuple[CheckDeclaration, CheckExecutionResult], ...]:
+        terminal: list[tuple[CheckDeclaration, CheckExecutionResult]] = []
+        for declaration in self._declarations.values():
+            result = self._results.get(declaration.identity)
+            if result is None:
+                result = CheckExecutionResult(state=CHECK_STATE_NOT_EXECUTED, reason="missing-terminal-result")
+            terminal.append((declaration, result))
+        return tuple(terminal)
+
+
+
+@dataclass(frozen=True)
 class UrlObservation:
     terminal_success: bool = False
     failed_optional: bool = False
@@ -156,6 +219,13 @@ class PassiveScanner:
         http_observation: HttpMetadataObservation | None = None
         observations: dict[str, UrlObservation] = {}
         attempted: list[str] = []
+
+        security_headers_declaration = CheckDeclaration(
+            check_id="http:security-headers",
+            required=True,
+            target=root.rstrip("/"),
+        )
+        execution_registry = CheckExecutionRegistry([security_headers_declaration])
 
         def record_failure(url: str, required: bool) -> None:
             previous = observations.get(url)
@@ -320,6 +390,52 @@ class PassiveScanner:
                 if name in REQUIRED_HEADERS:
                     evidence = Evidence(url=http_observation.url, evidence_type="http_header", excerpt=f"{name}: Absent", response_sha256=root_hash, observation_sha256=http_observation.headers_sha256, confidence="high", detection_method="response_header_check")
                     findings.append(Finding(subject=name, status=Status.HARDENING, severity="Faible", interpretation=f"En-tête {name} absent; aucune exploitation démontrée.", business_risk="Réduction de la défense en profondeur du navigateur.", remediation=f"Ajouter {name} après tests de compatibilité.", evidence=[evidence]))
+
+        if http_observation.observed:
+            required_absent = any(name in REQUIRED_HEADERS for name in http_observation.absent_headers)
+            execution_registry.record(
+                security_headers_declaration,
+                CHECK_STATE_SUCCESS_WITH_EVIDENCE if required_absent else CHECK_STATE_SUCCESS_NO_FINDING,
+            )
+        else:
+            execution_registry.record(
+                security_headers_declaration,
+                CHECK_STATE_FAILED_OBSERVATION,
+                reason=REASON_ROOT_UNAVAILABLE,
+            )
+
+        required_terminal_failure = False
+        existing_not_tested = {
+            (issue.check_id, issue.url)
+            for issue in scan_issues
+            if issue.kind == "CHECK_NOT_TESTED"
+        }
+        for declaration, terminal in execution_registry.finalize():
+            if terminal.state not in COVERAGE_FAILURE_STATES:
+                continue
+            if terminal.reason == REASON_ROOT_UNAVAILABLE:
+                if declaration.required:
+                    required_terminal_failure = True
+                continue
+            if declaration.required:
+                required_terminal_failure = True
+                key = (declaration.check_id, redact_url(declaration.target))
+                if key not in existing_not_tested:
+                    scan_issues.append(
+                        ScanIssue(
+                            kind="CHECK_NOT_TESTED",
+                            url=redact_url(declaration.target),
+                            required=True,
+                            check_id=declaration.check_id,
+                        )
+                    )
+                    existing_not_tested.add(key)
+
+        scan_completeness = (
+            "INCOMPLETE"
+            if required_terminal_failure or any(issue.required for issue in scan_issues)
+            else "COMPLETED"
+        )
         score = calculate_score(findings)
         return AuditResult(
             is_demo=False,
@@ -333,7 +449,7 @@ class PassiveScanner:
             findings=findings,
             headers=headers_seen,
             cookies=cookies,
-            scan_completeness="INCOMPLETE" if any(issue.required for issue in scan_issues) else "COMPLETED",
+            scan_completeness=scan_completeness,
             scan_issues=scan_issues,
             advisory_snapshot_sha256=snapshot.snapshot_sha256,
             advisory_snapshot_date=snapshot.snapshot_date,
